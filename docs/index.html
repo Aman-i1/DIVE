@@ -104,7 +104,11 @@ pip install -e ".[tuning]"      # optuna
 pip install -e ".[explain]"     # category_encoders, shap</code></pre>
 <p>Run <code>dive deps</code> at any time to see what is active.</p>
 </section><section class="card"><h2>Google Colab</h2>
-<p>No local setup. Paste this into a Colab cell:</p>
+<p>No local setup. Open the ready-made notebook straight from GitHub:</p>
+<p><a href="https://colab.research.google.com/github/Aman-i1/DIVE/blob/main/examples/colab_quickstart.ipynb"><img src="https://colab.research.google.com/assets/colab-badge.svg" alt="Open In Colab"></a></p>
+<p>It clones the repo, installs DIVE, and walks the whole flow: validate, train,
+read the report, score new rows.</p>
+<p>To start from a blank notebook instead, paste this into a cell:</p>
 <pre><code>!git clone https://github.com/Aman-i1/DIVE.git
 %cd DIVE
 !pip install -q -e ".[full]"
@@ -116,7 +120,6 @@ from IPython.display import HTML
 HTML(open('/content/out/report.html').read())</code></pre>
 <p>The report is a single self-contained file with the plots inlined, so it
 renders directly in the notebook and can be downloaded on its own.</p>
-<p>A ready-made notebook lives at <code>examples/colab_quickstart.ipynb</code>.</p>
 </section><section class="card"><h2>Where output files land</h2>
 <p>Everything from a run goes into <code>--output</code> (default
 <code>./dive_output</code>):</p>

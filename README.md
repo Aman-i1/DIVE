@@ -1,5 +1,7 @@
 # DIVE
 
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/Aman-i1/DIVE/blob/main/examples/colab_quickstart.ipynb)
+
 Automated machine learning for tabular data, driven from the command line.
 
 Point it at a CSV, name the column you want to predict, and it profiles the
@@ -45,7 +47,15 @@ Run `dive deps` to see what is active.
 
 ## Google Colab
 
-No local setup. Paste into a cell:
+No local setup, no install on your machine — click the badge and run the cells:
+
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/Aman-i1/DIVE/blob/main/examples/colab_quickstart.ipynb)
+
+That opens [`examples/colab_quickstart.ipynb`](examples/colab_quickstart.ipynb),
+which clones the repo, installs DIVE, and walks the whole flow: validate, train,
+read the report, score new rows.
+
+To start from a blank notebook instead, paste this into a cell:
 
 ```python
 !git clone https://github.com/Aman-i1/DIVE.git
@@ -60,8 +70,7 @@ HTML(open('/content/out/report.html').read())
 ```
 
 The report embeds its plots as base64, so it renders inline and can be
-downloaded as a single file. A complete walkthrough lives in
-[`examples/colab_quickstart.ipynb`](examples/colab_quickstart.ipynb).
+downloaded as a single file.
 
 ---
 
