@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CLI reference - dive</title>
+<style>
+:root { --primary:#2171b5; --ink:#1f2328; --muted:#59636e; --line:#d8dee4; --bg:#f6f8fa; }
+* { box-sizing:border-box; }
+body { margin:0; font-family:-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+       color:var(--ink); background:var(--bg); line-height:1.6; }
+header { background:#10304f; color:#fff; padding:22px 32px; }
+header h1 { margin:0; font-size:20px; }
+header p { margin:6px 0 0; color:#b6c8d8; font-size:13px; }
+nav { background:#0c2540; padding:0 32px; display:flex; gap:4px; flex-wrap:wrap; }
+nav a { color:#cddced; text-decoration:none; padding:11px 14px; font-size:13px; font-weight:500;
+        border-bottom:3px solid transparent; }
+nav a:hover { color:#fff; background:rgba(255,255,255,.06); }
+nav a.active { color:#fff; border-bottom-color:#5aa9e6; }
+main { max-width:900px; margin:26px auto 72px; padding:0 18px; }
+.card { background:#fff; border:1px solid var(--line); border-radius:10px; padding:22px 26px;
+        margin-bottom:20px; box-shadow:0 1px 2px rgba(0,0,0,.04); }
+h2 { font-size:17px; margin-top:0; border-bottom:2px solid var(--line); padding-bottom:8px; }
+h3 { font-size:14px; margin:20px 0 8px; }
+code { background:#eff2f5; padding:2px 6px; border-radius:4px; font-size:12.5px;
+       font-family:ui-monospace,"SF Mono",Menlo,Consolas,monospace; }
+pre { background:#0d1117; color:#e6edf3; padding:14px 16px; border-radius:8px; overflow-x:auto;
+      font-size:12.5px; line-height:1.5; }
+pre code { background:none; color:inherit; padding:0; }
+table { border-collapse:collapse; width:100%; font-size:13px; margin:10px 0; }
+th,td { text-align:left; padding:8px 10px; border-bottom:1px solid var(--line); vertical-align:top; }
+th { background:#f0f3f6; font-weight:600; }
+.verdict { display:inline-block; padding:2px 9px; border-radius:999px; font-size:11px;
+           font-weight:700; color:#fff; }
+.pass { background:#1a7f37; } .warn { background:#bf8700; } .fail { background:#cf222e; }
+.note { border-left:4px solid var(--primary); background:#eaf2fa; padding:12px 16px;
+        border-radius:0 6px 6px 0; margin:14px 0; font-size:13.5px; }
+footer { max-width:900px; margin:0 auto; padding:0 18px 52px; color:var(--muted); font-size:12px; }
+ul { padding-left:22px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>dive</h1>
+  <p>Automated machine learning for tabular data, from the terminal.</p>
+</header>
+<nav><a href="index.html">Overview</a><a href="quickstart.html">Quickstart</a><a href="cli-reference.html" class="active">CLI reference</a></nav>
+<main>
+<section class="card"><h2>Global usage</h2>
+<pre><code>dive [--quiet] [--traceback] COMMAND [OPTIONS]</code></pre>
+<table>
+<tr><th>Flag</th><th>Effect</th></tr>
+<tr><td><code>--version</code>, <code>-V</code></td><td>Print the version and exit.</td></tr>
+<tr><td><code>--help</code>, <code>-h</code></td><td>Available on every command.</td></tr>
+<tr><td><code>--quiet</code>, <code>-q</code></td><td>Suppress progress output; warnings and errors still print.</td></tr>
+<tr><td><code>--traceback</code></td><td>Print the full Python traceback on failure.</td></tr>
+</table>
+<p>Exit codes: <code>0</code> success, <code>1</code> a user or data error
+(including a failed validation), <code>2</code> an unexpected internal error.</p>
+</section><section class="card"><h2>dive deps</h2><p>Show which optional packages are installed and what each one enables.</p><table><tr><th>Option</th><th>Description</th></tr><tr><td><code>-V</code>, <code>--version</code></td><td>Show the version and exit.</td></tr><tr><td><code>--traceback</code></td><td>Print the full Python traceback on failure.</td></tr></table><pre><code>dive deps</code></pre></section><section class="card"><h2>dive docs</h2><p>Open or serve the HTML documentation site.</p><p>
+Examples:
+  dive docs
+  dive docs --serve --port 9000
+  dive docs --output ./my-docs --no-browser</p><table><tr><th>Option</th><th>Description</th></tr><tr><td><code>--output</code></td><td>Directory to write the docs into. Defaults to the package docs/ directory.</td></tr><tr><td><code>--serve</code></td><td>Serve the docs over HTTP instead of just opening a file.</td></tr><tr><td><code>--port</code></td><td>Port for --serve.</td></tr><tr><td><code>--no-browser</code></td><td>Do not open a browser automatically.</td></tr><tr><td><code>-V</code>, <code>--version</code></td><td>Show the version and exit.</td></tr><tr><td><code>--traceback</code></td><td>Print the full Python traceback on failure.</td></tr></table><pre><code>dive docs            # open the docs in your browser
+dive docs --serve    # serve them on http://localhost:8000</code></pre></section><section class="card"><h2>dive explain</h2><p>Explain how the saved model was built, in plain English.</p><p>Prints the pipeline stages and top features to the terminal. With
+``--output`` it writes a standalone HTML file that also contains the exact
+Python needed to reproduce the model without dive.
+
+
+Examples:
+  dive explain --model ./out/model.pkl
+  dive explain --model ./out/model.pkl --output explanation.html</p><table><tr><th>Option</th><th>Description</th></tr><tr><td><code>--model</code> <strong>(required)</strong></td><td>Path to a .pkl written by `dive train`.</td></tr><tr><td><code>--output</code></td><td>Write the explanation as a standalone HTML file.</td></tr><tr><td><code>--open</code></td><td>Open the output in your browser after writing it.</td></tr><tr><td><code>-V</code>, <code>--version</code></td><td>Show the version and exit.</td></tr><tr><td><code>--traceback</code></td><td>Print the full Python traceback on failure.</td></tr></table><pre><code>dive explain --model ./out/model.pkl --output explanation.html</code></pre></section><section class="card"><h2>dive predict</h2><p>Score new data with a saved model.</p><p>The incoming schema is checked against the training schema first: a missing
+feature column fails immediately rather than silently misaligning columns.
+
+
+Examples:
+  dive predict --model ./out/model.pkl --data new_rows.csv
+  dive predict --model ./out/model.pkl --data new.csv --proba --output scored.csv</p><table><tr><th>Option</th><th>Description</th></tr><tr><td><code>--model</code> <strong>(required)</strong></td><td>Path to a .pkl written by `dive train`.</td></tr><tr><td><code>--data</code> <strong>(required)</strong></td><td>Rows to score. Must carry the same feature columns used in training.</td></tr><tr><td><code>--output</code></td><td>Where to write predictions. [default: predictions.csv]</td></tr><tr><td><code>--proba</code></td><td>Also emit one probability column per class (classification only).</td></tr><tr><td><code>--include-input</code></td><td>Copy the input columns into the output file alongside predictions.</td></tr><tr><td><code>-V</code>, <code>--version</code></td><td>Show the version and exit.</td></tr><tr><td><code>--traceback</code></td><td>Print the full Python traceback on failure.</td></tr></table><pre><code>dive predict --model ./out/model.pkl --data new_rows.csv \
+    --proba --output scored.csv</code></pre></section><section class="card"><h2>dive report</h2><p>Render the full HTML report for a saved model.</p><p>The report is a single self-contained file: leaderboard, diagnostics plots,
+feature importance, data profile, and every crosscheck verdict from the
+training run (read from validation.json beside the model).
+
+
+Examples:
+  dive report --model ./out/model.pkl
+  dive report --model ./out/model.pkl --output report.html --open</p><table><tr><th>Option</th><th>Description</th></tr><tr><td><code>--model</code> <strong>(required)</strong></td><td>Path to a .pkl written by `dive train`.</td></tr><tr><td><code>--output</code></td><td>Where to write the HTML report.</td></tr><tr><td><code>--open</code></td><td>Open the report in your browser after writing it.</td></tr><tr><td><code>-V</code>, <code>--version</code></td><td>Show the version and exit.</td></tr><tr><td><code>--traceback</code></td><td>Print the full Python traceback on failure.</td></tr></table><pre><code>dive report --model ./out/model.pkl --output report.html</code></pre></section><section class="card"><h2>dive train</h2><p>Train a model zoo and write the best model plus a full report.</p><p>
+Examples:
+  dive train --data sales.csv --target revenue --mode fast --output ./out
+  dive train --data churn.parquet --target churned --time-budget 600
+  dive train --data data.csv --target y --config my_settings.yaml</p><table><tr><th>Option</th><th>Description</th></tr><tr><td><code>--data</code></td><td>Path to the training data (.csv, .parquet, .json, .xlsx). Required unless supplied via --config.</td></tr><tr><td><code>--target</code></td><td>Name of the column to predict. Defaults to the last column.</td></tr><tr><td><code>--mode</code></td><td>fast = small zoo, no tuning. balanced = full zoo + tuning + stacking. competition = adds feature selection and extra models. [default: balanced]</td></tr><tr><td><code>--time-budget</code></td><td>Wall-clock seconds for the whole run. [default: 1800]</td></tr><tr><td><code>--output</code></td><td>Directory for the model, leaderboard, plots, and report. [default: ./dive_output]</td></tr><tr><td><code>--config</code></td><td>YAML or JSON file supplying any of these options.</td></tr><tr><td><code>--test-size</code></td><td>Fraction of rows held out for evaluation. [default: 0.2]</td></tr><tr><td><code>--cv-folds</code></td><td>Cross-validation folds. Defaults to an adaptive value based on dataset size.</td></tr><tr><td><code>--random-state</code></td><td>Random seed for reproducible runs. [default: 42]</td></tr><tr><td><code>--time-series</code></td><td>Split chronologically instead of randomly (no shuffling).</td></tr><tr><td><code>--no-plots</code></td><td>Skip PNG plot generation.</td></tr><tr><td><code>--no-report</code></td><td>Skip the HTML report.</td></tr><tr><td><code>--skip-validation</code></td><td>Do not run the crosscheck suite before training.</td></tr><tr><td><code>-V</code>, <code>--version</code></td><td>Show the version and exit.</td></tr><tr><td><code>--traceback</code></td><td>Print the full Python traceback on failure.</td></tr></table><pre><code>dive train --data sales.csv --target revenue --mode balanced \
+    --time-budget 900 --output ./out</code></pre></section><section class="card"><h2>dive validate</h2><p>Check a dataset for the failures that silently invalidate models.</p><p>No model is trained. The suite covers target health, leakage, duplicate-row
+leakage, train/holdout drift, and missing data, and reports a PASS / WARN /
+FAIL verdict per check.
+
+
+Examples:
+  dive validate --data data.csv --target diagnosis
+  dive validate --data data.csv --target churned --strict --output checks.json</p><table><tr><th>Option</th><th>Description</th></tr><tr><td><code>--data</code> <strong>(required)</strong></td><td>Path to the data file (.csv, .parquet, .json, .xlsx).</td></tr><tr><td><code>--target</code></td><td>Column to predict. Without it, only structural checks run.</td></tr><tr><td><code>--test-size</code></td><td>Holdout fraction, used to reproduce the same split train will use.</td></tr><tr><td><code>--random-state</code></td><td>Seed for the reproducible split.</td></tr><tr><td><code>--time-series</code></td><td>Split chronologically instead of randomly.</td></tr><tr><td><code>--output</code></td><td>Also write the report as JSON.</td></tr><tr><td><code>--strict</code></td><td>Return exit code 1 on warnings too (for CI gates).</td></tr><tr><td><code>-V</code>, <code>--version</code></td><td>Show the version and exit.</td></tr><tr><td><code>--traceback</code></td><td>Print the full Python traceback on failure.</td></tr></table><pre><code>dive validate --data sales.csv --target revenue</code></pre></section><section class="card"><h2>What each crosscheck means</h2>
+<p><code>dive validate</code> and the pre-flight stage of <code>dive train</code>
+run the same suite. Each check reports <span class="verdict pass">PASS</span>,
+<span class="verdict warn">WARN</span>, or <span class="verdict fail">FAIL</span>.</p>
+
+<h3>target_health</h3>
+<p>Class imbalance, a near-constant target, or heavy target missingness.</p>
+<ul>
+  <li><strong>WARN</strong> - imbalance beyond 10:1, or over 20% of targets missing.
+      Accuracy becomes misleading; read balanced accuracy and F1 instead.</li>
+  <li><strong>FAIL</strong> - one class holds 99%+ of rows, the target barely varies,
+      or the smallest class has under 5 rows. There is nothing learnable here.</li>
+</ul>
+
+<h3>target_leakage</h3>
+<p>Scores every feature against the target: absolute correlation for numeric
+pairs, normalised mutual information otherwise.</p>
+<ul>
+  <li><strong>WARN</strong> - a feature scores 0.90-0.98. Strong, possibly legitimate.
+      Worth understanding before you trust it.</li>
+  <li><strong>FAIL</strong> - a feature scores 0.98 or above. That is a re-encoding of
+      the answer, not a predictor. Drop it; otherwise the model looks excellent in
+      testing and fails in production.</li>
+</ul>
+
+<h3>duplicate_rows</h3>
+<p>Identical feature rows, and specifically rows appearing on both sides of the
+train/holdout split.</p>
+<ul>
+  <li><strong>WARN</strong> - duplicates exist within the dataset. They bias
+      frequency encodings and inflate scores.</li>
+  <li><strong>FAIL</strong> - 1% or more of holdout rows also appear in training.
+      The holdout score is partly a memory test. Deduplicate, or split so
+      identical records stay on one side.</li>
+</ul>
+
+<h3>train_holdout_drift</h3>
+<p>Per-feature Population Stability Index plus a Kolmogorov-Smirnov test between
+the two splits. Both must agree before a feature is flagged.</p>
+<ul>
+  <li><strong>WARN</strong> - a numeric feature is distributed differently across the
+      split. Expected with <code>--time-series</code>. On a random split it means
+      the data is ordered or grouped, so the holdout score may not describe
+      future rows.</li>
+</ul>
+
+<h3>missing_data</h3>
+<ul>
+  <li><strong>WARN</strong> - a column is over 40% missing, so imputation is supplying
+      most of its values.</li>
+  <li><strong>FAIL</strong> - a column is 99%+ missing and carries no information.</li>
+</ul>
+
+<h3>cv_stability</h3>
+<p>Per-fold scores for the winning model, not just the mean.</p>
+<ul>
+  <li><strong>WARN</strong> - the standard deviation exceeds 10% of the mean. The
+      headline number depends on which rows landed in which fold; expect real
+      performance anywhere in the fold range.</li>
+  <li><strong>SKIP</strong> - boosted models and stacked ensembles are scored on the
+      holdout rather than by cross-validation, so no fold scores exist.</li>
+</ul>
+
+<h3>predict_schema</h3>
+<p>Runs inside <code>dive predict</code>, comparing incoming columns and dtypes
+against training.</p>
+<ul>
+  <li><strong>WARN</strong> - a column changed type. The pipeline usually copes;
+      check the values are sensible.</li>
+  <li><strong>FAIL</strong> - a required column is missing. Scoring stops rather than
+      misaligning columns and returning confident nonsense. Columns dropped during
+      training (constants, IDs) are allowed to be absent, and extra columns are
+      ignored.</li>
+</ul>
+
+<div class="note"><strong>Exit codes:</strong> <code>dive validate</code> returns
+1 on any FAIL, and 0 when only warnings are present - unless you pass
+<code>--strict</code>, which makes warnings fail too. Useful as a CI gate.</div>
+</section>
+</main>
+<footer>dive documentation. Generated from the installed package, so this
+reflects the version you have.</footer>
+</body>
+</html>

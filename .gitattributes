@@ -1,0 +1,10 @@
+# Normalise to LF in the repository. Without this, Git on Windows commits CRLF
+# and the same file differs between platforms - the tool is meant to behave
+# identically on Windows, macOS, and Linux.
+* text=auto eol=lf
+
+# Binary / generated assets: never touch these.
+*.png binary
+*.pkl binary
+*.ipynb -text
+*.csv -text

@@ -1,0 +1,85 @@
+[build-system]
+requires = ["setuptools>=64", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "dive"
+version = "0.1.0"
+description = "Cross-platform command-line tool for automated tabular machine learning: data profiling, feature engineering, a multi-model zoo, hyperparameter tuning, stacking, and data validation."
+readme = "README.md"
+license = { file = "LICENSE" }
+requires-python = ">=3.9"
+keywords = ["dive", "machine-learning", "tabular", "cli", "scikit-learn"]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Environment :: Console",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+
+dependencies = [
+    "numpy>=1.23",
+    "pandas>=1.5",
+    "scikit-learn>=1.2",
+    "matplotlib>=3.6",
+    "click>=8.1",
+    "PyYAML>=6.0",
+]
+
+[project.optional-dependencies]
+# Extra gradient-boosting models. Everything still runs without these.
+boosters = [
+    "xgboost>=1.7",
+    "lightgbm>=3.3",
+    "catboost>=1.2",
+]
+# Hyperparameter search.
+tuning = [
+    "optuna>=3.0",
+]
+# Target encoding + SHAP explanations.
+explain = [
+    "category_encoders>=2.6",
+    "shap>=0.42",
+]
+full = [
+    "xgboost>=1.7",
+    "lightgbm>=3.3",
+    "catboost>=1.2",
+    "optuna>=3.0",
+    "category_encoders>=2.6",
+    "shap>=0.42",
+]
+dev = [
+    "pytest>=7.0",
+    "pytest-cov>=4.0",
+    "pyarrow>=10.0",
+]
+
+[project.scripts]
+dive = "dive.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/Aman-i1/DIVE"
+Documentation = "https://github.com/Aman-i1/DIVE/tree/main/docs"
+Issues = "https://github.com/Aman-i1/DIVE/issues"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["dive*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+filterwarnings = [
+    "ignore::DeprecationWarning",
+    "ignore::FutureWarning",
+    "ignore::UserWarning",
+]

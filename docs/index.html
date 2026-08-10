@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Overview - dive</title>
+<style>
+:root { --primary:#2171b5; --ink:#1f2328; --muted:#59636e; --line:#d8dee4; --bg:#f6f8fa; }
+* { box-sizing:border-box; }
+body { margin:0; font-family:-apple-system,"Segoe UI",Roboto,"Helvetica Neue",Arial,sans-serif;
+       color:var(--ink); background:var(--bg); line-height:1.6; }
+header { background:#10304f; color:#fff; padding:22px 32px; }
+header h1 { margin:0; font-size:20px; }
+header p { margin:6px 0 0; color:#b6c8d8; font-size:13px; }
+nav { background:#0c2540; padding:0 32px; display:flex; gap:4px; flex-wrap:wrap; }
+nav a { color:#cddced; text-decoration:none; padding:11px 14px; font-size:13px; font-weight:500;
+        border-bottom:3px solid transparent; }
+nav a:hover { color:#fff; background:rgba(255,255,255,.06); }
+nav a.active { color:#fff; border-bottom-color:#5aa9e6; }
+main { max-width:900px; margin:26px auto 72px; padding:0 18px; }
+.card { background:#fff; border:1px solid var(--line); border-radius:10px; padding:22px 26px;
+        margin-bottom:20px; box-shadow:0 1px 2px rgba(0,0,0,.04); }
+h2 { font-size:17px; margin-top:0; border-bottom:2px solid var(--line); padding-bottom:8px; }
+h3 { font-size:14px; margin:20px 0 8px; }
+code { background:#eff2f5; padding:2px 6px; border-radius:4px; font-size:12.5px;
+       font-family:ui-monospace,"SF Mono",Menlo,Consolas,monospace; }
+pre { background:#0d1117; color:#e6edf3; padding:14px 16px; border-radius:8px; overflow-x:auto;
+      font-size:12.5px; line-height:1.5; }
+pre code { background:none; color:inherit; padding:0; }
+table { border-collapse:collapse; width:100%; font-size:13px; margin:10px 0; }
+th,td { text-align:left; padding:8px 10px; border-bottom:1px solid var(--line); vertical-align:top; }
+th { background:#f0f3f6; font-weight:600; }
+.verdict { display:inline-block; padding:2px 9px; border-radius:999px; font-size:11px;
+           font-weight:700; color:#fff; }
+.pass { background:#1a7f37; } .warn { background:#bf8700; } .fail { background:#cf222e; }
+.note { border-left:4px solid var(--primary); background:#eaf2fa; padding:12px 16px;
+        border-radius:0 6px 6px 0; margin:14px 0; font-size:13.5px; }
+footer { max-width:900px; margin:0 auto; padding:0 18px 52px; color:var(--muted); font-size:12px; }
+ul { padding-left:22px; }
+</style>
+</head>
+<body>
+<header>
+  <h1>dive</h1>
+  <p>Automated machine learning for tabular data, from the terminal.</p>
+</header>
+<nav><a href="index.html" class="active">Overview</a><a href="quickstart.html">Quickstart</a><a href="cli-reference.html">CLI reference</a></nav>
+<main>
+<section class="card"><h2>What this does</h2>
+<p>DIVE trains a zoo of models on a tabular file, tunes the leaders,
+stacks them, and reports the result - without writing any modelling code.
+It also checks the dataset for the mistakes that silently invalidate a model:
+target leakage, duplicate rows spanning the train/holdout split, and
+distribution drift.</p>
+<h3>Capabilities</h3>
+<ul>
+  <li><strong>Data profiling</strong> - problem type, class imbalance, missing
+      values, high-cardinality columns, constant and ID-like columns.</li>
+  <li><strong>Feature engineering</strong> - drops junk columns, expands dates
+      into calendar parts, clips outliers, groups rare categories, and applies
+      frequency and target encoding.</li>
+  <li><strong>Model zoo</strong> - linear models, random forest, extra trees,
+      histogram gradient boosting, MLP, KNN, AdaBoost, plus XGBoost, LightGBM and
+      CatBoost when installed. GPU is detected automatically.</li>
+  <li><strong>Tuning</strong> - Optuna search with pruning, under a wall-clock
+      budget you set.</li>
+  <li><strong>Stacking</strong> - out-of-fold predictions from the top models
+      feed a meta-learner.</li>
+  <li><strong>Crosschecks</strong> - leakage, duplicate-row leakage, drift,
+      fold-to-fold stability, and a predict-time schema gate.</li>
+  <li><strong>Reports</strong> - a self-contained HTML report with the
+      leaderboard, diagnostics, feature importance, and every crosscheck.</li>
+</ul>
+</section><section class="card"><h2>The commands</h2>
+<p>Seven commands. Every one accepts <code>--help</code> and
+<code>--version</code>; full flags and defaults are in the
+<a href="cli-reference.html">CLI reference</a>.</p>
+<table>
+<tr><th>Command</th><th>What it does</th></tr>
+<tr><td><code>dive train</code></td><td>Profile, engineer features, train the zoo, tune, stack, then write the model plus a full report.</td></tr>
+<tr><td><code>dive validate</code></td><td>Run the crosschecks with no training - an "is my data ready" gate.</td></tr>
+<tr><td><code>dive predict</code></td><td>Score new rows with a saved model, after checking the incoming schema against training.</td></tr>
+<tr><td><code>dive explain</code></td><td>Plain-English pipeline summary, top features, and code to reproduce the model.</td></tr>
+<tr><td><code>dive report</code></td><td>Re-render the full HTML report from a saved model.</td></tr>
+<tr><td><code>dive docs</code></td><td>Open or serve this documentation site locally.</td></tr>
+<tr><td><code>dive deps</code></td><td>Show which optional packages are installed and what each one unlocks.</td></tr>
+</table>
+<div class="note">Every command exits <code>0</code> on success and non-zero on
+failure, so <code>dive validate</code> works as a CI gate.</div>
+</section><section class="card"><h2>Install</h2>
+<h3>From a clone</h3>
+<pre><code>git clone https://github.com/Aman-i1/DIVE.git
+cd DIVE
+pip install -e .</code></pre>
+<p>That gives you the <code>dive</code> command on Windows, macOS, and Linux.
+Verify with <code>dive --help</code>.</p>
+
+<h3>Optional extras</h3>
+<p>The tool runs on scikit-learn alone. Extras widen the model zoo and unlock
+tuning; anything missing is skipped with a note telling you what and why.</p>
+<pre><code>pip install -e ".[full]"        # everything
+pip install -e ".[boosters]"    # xgboost, lightgbm, catboost
+pip install -e ".[tuning]"      # optuna
+pip install -e ".[explain]"     # category_encoders, shap</code></pre>
+<p>Run <code>dive deps</code> at any time to see what is active.</p>
+</section><section class="card"><h2>Google Colab</h2>
+<p>No local setup. Paste this into a Colab cell:</p>
+<pre><code>!git clone https://github.com/Aman-i1/DIVE.git
+%cd DIVE
+!pip install -q -e ".[full]"
+
+!dive train --data examples/sample.csv --target diagnosis \
+    --mode fast --output /content/out
+
+from IPython.display import HTML
+HTML(open('/content/out/report.html').read())</code></pre>
+<p>The report is a single self-contained file with the plots inlined, so it
+renders directly in the notebook and can be downloaded on its own.</p>
+<p>A ready-made notebook lives at <code>examples/colab_quickstart.ipynb</code>.</p>
+</section><section class="card"><h2>Where output files land</h2>
+<p>Everything from a run goes into <code>--output</code> (default
+<code>./dive_output</code>):</p>
+<table>
+<tr><th>File</th><th>Contents</th></tr>
+<tr><td><code>model.pkl</code></td><td>Fitted model plus the feature engineer, used by <code>dive predict</code>.</td></tr>
+<tr><td><code>leaderboard.csv</code></td><td>Every model and its scores, best first.</td></tr>
+<tr><td><code>report.html</code></td><td>Self-contained report: leaderboard, diagnostics, importance, crosschecks.</td></tr>
+<tr><td><code>validation.json</code></td><td>Machine-readable crosscheck verdicts.</td></tr>
+<tr><td><code>metadata.json</code></td><td>Run settings, schema, timings, skipped models.</td></tr>
+<tr><td><code>plots/*.png</code></td><td>Leaderboard, train-vs-holdout, diagnostics, feature importance.</td></tr>
+</table>
+<div class="note">File names are stable, so scripts and CI jobs can depend on
+them.</div>
+</section>
+</main>
+<footer>dive documentation. Generated from the installed package, so this
+reflects the version you have.</footer>
+</body>
+</html>

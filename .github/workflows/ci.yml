@@ -1,0 +1,130 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: ${{ matrix.os }} / Python ${{ matrix.python-version }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        python-version: ["3.9", "3.12"]
+
+    env:
+      # Runners have no GPU; skip detection so results are deterministic.
+      AUTOML_NO_GPU: "1"
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: pip
+
+      - name: Install package with all extras
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[full,dev]"
+
+      - name: Show resolved optional dependencies
+        run: dive deps
+
+      - name: Run test suite
+        run: pytest -v --tb=short
+
+      - name: Smoke test - the documented quickstart flow
+        shell: bash
+        run: |
+          set -e
+          dive --version
+          dive validate --data examples/sample.csv --target diagnosis
+          dive train --data examples/sample.csv --target diagnosis \
+            --mode fast --time-budget 120 --output ./ci_out
+          dive report --model ./ci_out/model.pkl --output ./ci_out/report.html
+          dive explain --model ./ci_out/model.pkl --output ./ci_out/explain.html
+          dive docs --output ./ci_docs --no-browser
+
+      - name: Verify expected artifacts exist
+        shell: bash
+        run: |
+          set -e
+          for f in model.pkl leaderboard.csv metadata.json validation.json report.html; do
+            test -s "./ci_out/$f" || { echo "missing or empty: $f"; exit 1; }
+          done
+          test -s ./ci_docs/index.html
+          test -s ./ci_docs/cli-reference.html
+          echo "All expected artifacts present."
+
+      - name: Verify predict round-trip and schema enforcement
+        shell: bash
+        run: |
+          set -e
+          python - <<'PY'
+          import pandas as pd
+          frame = pd.read_csv("examples/sample.csv").drop(columns=["diagnosis"]).head(20)
+          frame.to_csv("ci_new_rows.csv", index=False)
+          frame.drop(columns=["mean_radius"]).to_csv("ci_broken.csv", index=False)
+          PY
+          dive predict --model ./ci_out/model.pkl --data ci_new_rows.csv \
+            --output ./ci_out/preds.csv
+          test -s ./ci_out/preds.csv
+          # A missing feature column must fail with exit code 1, not a traceback.
+          if dive predict --model ./ci_out/model.pkl --data ci_broken.csv \
+               --output ./ci_out/bad.csv; then
+            echo "ERROR: schema mismatch was not rejected"; exit 1
+          else
+            echo "Schema mismatch correctly rejected."
+          fi
+
+  sklearn-only:
+    name: scikit-learn only (no optional extras)
+    runs-on: ubuntu-latest
+    env:
+      AUTOML_NO_GPU: "1"
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install without any optional extras
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+
+      - name: Confirm the extras really are absent
+        run: |
+          python - <<'PY'
+          import importlib, sys
+          for name in ("xgboost", "lightgbm", "catboost", "optuna", "shap"):
+              try:
+                  importlib.import_module(name)
+              except ImportError:
+                  continue
+              sys.exit(f"{name} should not be installed in this job")
+          print("Confirmed: no optional extras installed.")
+          PY
+
+      - name: Run test suite
+        run: pytest -v --tb=short
+
+      - name: Train with scikit-learn alone
+        run: |
+          dive deps
+          dive train --data examples/sample.csv --target diagnosis \
+            --mode balanced --time-budget 120 --output ./bare_out
+          test -s ./bare_out/model.pkl
