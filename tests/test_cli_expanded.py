@@ -85,4 +85,32 @@ def test_pdf_report_generation(tmp_path: Path, sample_csv: str) -> None:
     assert pdf_file.stat().st_size > 0
 
 
+def test_cli_audit(cli_runner: CliRunner, sample_csv: str, tmp_path: Path) -> None:
+    cert_pdf = tmp_path / "cert.pdf"
+    res = cli_runner.invoke(cli, ["audit", sample_csv, "--target", "churn", "--output", str(cert_pdf)])
+    assert res.exit_code == 0
+    assert "DIVE COMPLIANCE & ML RELIABILITY AUDITOR" in res.output
+    assert cert_pdf.exists()
+
+
+def test_cli_export_and_gate(cli_runner: CliRunner, sample_csv: str, tmp_path: Path) -> None:
+    from dive.core import Dive
+
+    df = pd.read_csv(sample_csv)
+    model = Dive(target="churn", mode="fast")
+    model.fit(df)
+
+    model_pkl = tmp_path / "model.pkl"
+    model.save(model_pkl)
+
+    onnx_file = tmp_path / "model.onnx"
+    res_export = cli_runner.invoke(cli, ["export", str(model_pkl), "--output", str(onnx_file)])
+    assert res_export.exit_code == 0
+
+    res_gate = cli_runner.invoke(cli, ["gate", str(model_pkl), "--data", sample_csv])
+    assert res_gate.exit_code == 0
+    assert "DEPLOYMENT APPROVED" in res_gate.output
+
+
+
 

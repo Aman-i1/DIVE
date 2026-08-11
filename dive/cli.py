@@ -710,6 +710,129 @@ def info_command(
     run_info(console=_console(ctx), data_path=path, output_path=output_path)
 
 
+# ----------------------------------------------------------------------
+@cli.command("audit")
+@click.argument("data_path_arg", required=False, type=click.Path())
+@click.option("--data", "data_path_opt", default=None, type=click.Path(), help="Path to data file.")
+@click.option("--target", required=True, help="Column to predict.")
+@click.option("--group-column", default=None, help="Column identifying entity groups.")
+@click.option("--time-column", default=None, help="Column identifying timestamps.")
+@click.option("--output", "output_path", default=None, type=click.Path(), help="Write certificate (.pdf or .json).")
+@click.pass_context
+def audit_command(
+    ctx: click.Context,
+    data_path_arg: Optional[str],
+    data_path_opt: Optional[str],
+    target: str,
+    group_column: Optional[str],
+    time_column: Optional[str],
+    output_path: Optional[str],
+) -> None:
+    """Run compliance audit and generate signed ML Reliability Certificate.
+
+    \b
+    Examples:
+      dive audit data.csv --target churn
+      dive audit data.csv --target churn --output audit_certificate.pdf
+    """
+    from dive.commands.audit import run_audit
+
+    path = data_path_arg or data_path_opt
+    if not path:
+        raise click.UsageError("Missing dataset path. Example: dive audit data.csv --target label")
+
+    run_audit(
+        console=_console(ctx),
+        data_path=path,
+        target=target,
+        group_column=group_column,
+        time_column=time_column,
+        output_path=output_path,
+    )
+
+
+# ----------------------------------------------------------------------
+@cli.command("export")
+@click.argument("model_path_arg", required=False, type=click.Path())
+@click.option("--model", "model_path_opt", default=None, type=click.Path(), help="Path to model.pkl.")
+@click.option("--output", "output_path", default=None, type=click.Path(), help="ONNX file path [default: model.onnx].")
+@click.option("--format", "format_type", default="onnx", show_default=True, help="Target export format.")
+@click.pass_context
+def export_command(
+    ctx: click.Context,
+    model_path_arg: Optional[str],
+    model_path_opt: Optional[str],
+    output_path: Optional[str],
+    format_type: str,
+) -> None:
+    """Export trained model artifact to standardized ONNX format.
+
+    \b
+    Examples:
+      dive export model.pkl
+      dive export --model ./out/model.pkl --output model.onnx
+    """
+    from dive.commands.export import run_export
+
+    model_path = model_path_arg or model_path_opt
+    if not model_path:
+        raise click.UsageError("Missing model file path. Example: dive export model.pkl")
+
+    run_export(
+        console=_console(ctx),
+        model_path=model_path,
+        output_path=output_path,
+        format_type=format_type,
+    )
+
+
+# ----------------------------------------------------------------------
+@cli.command("gate")
+@click.argument("model_path_arg", required=False, type=click.Path())
+@click.option("--model", "model_path_opt", default=None, type=click.Path(), help="Path to model.pkl.")
+@click.argument("data_path_arg", required=False, type=click.Path())
+@click.option("--data", "data_path_opt", default=None, type=click.Path(), help="Current production batch dataset.")
+@click.option("--ref", "ref_path", default=None, type=click.Path(), help="Reference baseline training dataset.")
+@click.option("--output", "output_path", default=None, type=click.Path(), help="Write gate verdict JSON.")
+@click.option("--strict", is_flag=True, help="Strict mode for CI/CD enforcement.")
+@click.pass_context
+def gate_command(
+    ctx: click.Context,
+    model_path_arg: Optional[str],
+    model_path_opt: Optional[str],
+    data_path_arg: Optional[str],
+    data_path_opt: Optional[str],
+    ref_path: Optional[str],
+    output_path: Optional[str],
+    strict: bool,
+) -> None:
+    """Evaluate production deployment gatekeeper; returns exit code 0 (PASS) or 1 (FAIL).
+
+    \b
+    Examples:
+      dive gate model.pkl --data prod_batch.csv
+      dive gate model.pkl --data prod_batch.csv --ref train.csv --strict
+    """
+    from dive.commands.gate import run_gate
+
+    model_path = model_path_arg or model_path_opt
+    data_path = data_path_arg or data_path_opt
+
+    if not model_path or not data_path:
+        raise click.UsageError("Missing model or data path. Example: dive gate model.pkl --data prod.csv")
+
+    code = run_gate(
+        console=_console(ctx),
+        model_path=model_path,
+        data_path=data_path,
+        ref_path=ref_path,
+        output_path=output_path,
+        strict=strict,
+    )
+    ctx.exit(code)
+
+
+
 
 
 

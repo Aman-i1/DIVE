@@ -1,0 +1,6 @@
+[workspace]
+members = [
+    "crates/dive-core",
+    "wasm",
+]
+resolver = "2"

@@ -1,0 +1,33 @@
+name: DIVE ML Reliability & Production Gate CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  dive-reliability-gate:
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Set up Python 3.11
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+
+    - name: Install DIVE & Dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -e .[full]
+        pytest
+
+    - name: Run DIVE ML Doctor Audit
+      run: |
+        dive doctor examples/sample.csv --target diagnosis
+
+    - name: Run DIVE Reliability Benchmark
+      run: |
+        dive benchmark --mode fast

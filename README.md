@@ -98,12 +98,13 @@ preds = predictor.predict(new_df)
 
 ## ⚡ CLI Commands Reference
 
-| Command | Purpose |
-|---|---|
 | `dive info` | Inspect unknown dataset, infer target candidates & problem types |
 | `dive doctor` | Full 17-point ML-readiness audit & Production Readiness Score |
-| `dive train` | Resource-aware AutoML training, tuning, stacking & reporting |
-| `dive predict` | Score new rows with schema validation & fitted preprocessing |
+| `dive audit` | Generate cryptographically signed ML Reliability Certificates (`audit_certificate.pdf`) |
+| `dive train` | Resource-aware AutoML training, tuning, stacking & research PDF report |
+| `dive predict` | Interactive prediction machine mode & batch CSV scoring |
+| `dive export` | Export trained pipeline & ensemble to polyglot ONNX format (`model.onnx`) |
+| `dive gate` | Production deployment gate evaluating schema, leakage & PSI drift (CI/CD exit code 0/1) |
 | `dive validate` | Standalone crosscheck suite (leakage, duplicates, target health) |
 | `dive serve` | Serve model as a FastAPI REST prediction server |
 | `dive experiments` | List, inspect, and compare tracked experiment runs |
@@ -113,11 +114,22 @@ preds = predictor.predict(new_df)
 | `dive benchmark` | Run DIVE dataset scaling & performance benchmark suite |
 | `dive upgrade` | Auto-upgrade DIVE to latest GitHub release & update dependencies |
 | `dive explain` | Pipeline account, local feature contributions & counterfactuals |
-
-
-| `dive report` | Render standalone HTML diagnostic report |
+| `dive report` | Render standalone HTML & research PDF diagnostic report |
 | `dive docs` | Open or serve local HTML documentation |
 | `dive deps` | Show optional dependency status |
+
+---
+
+## 🚀 Multi-Language Polyglot Ecosystem Architecture
+
+DIVE is engineered as a multi-language platform powered by:
+
+1. **Rust Core Engine (`crates/dive-core`)**: SIMD-vectorized multi-threaded data profiling, correlation calculations, and target leakage detection.
+2. **Universal C-ABI (`libdive.so` / `dive.h`)**: Foreign Function Interface exports enabling C, C++, Java, C#, and Go to invoke DIVE natively.
+3. **Go Binary CLI (`cmd/dive-go`)**: Sub-5ms instant startup binary CLI and high-concurrency production server.
+4. **WebAssembly Engine (`wasm/`)**: Browser-based client-side zero-server dataset auditing engine.
+5. **Polyglot ONNX Exporter (`dive export`)**: Converts DIVE models into ONNX graphs for execution across any runtime stack.
+
 
 ---
 
