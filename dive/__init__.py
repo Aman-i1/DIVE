@@ -20,6 +20,7 @@ from dive.audit import AuditCertificate, ComplianceAuditor
 from dive.calibration import ProbabilityCalibrator
 from dive.core import Dive, Evaluator, build_preprocessor, quick_dive
 from dive.data_intelligence import DataIntelligence
+from dive.decisions import DecisionLogger, DecisionRecord
 from dive.doctor import DiveDoctor, ProductionReadinessScore
 from dive.drift import DriftDetector
 from dive.exceptions import (
@@ -40,9 +41,11 @@ from dive.info import DatasetInspector, DatasetInfoReport
 from dive.leakage import AdvancedLeakageDetector
 from dive.model_zoo import ModelZoo
 from dive.onnx_export import ONNXExporter
+from dive.orchestration import StudyConfig, StudyOrchestrator
 from dive.predictor import DivePredictor, load_predictor
 from dive.registry import ModelRegistry, PromotionGate
 from dive.resources import ResourceManager
+from dive.study import Study, create_study
 
 __all__ = [
     "__version__",
@@ -75,6 +78,12 @@ __all__ = [
     "build_preprocessor",
     "load_predictor",
     "quick_dive",
+    "Study",
+    "create_study",
+    "DecisionRecord",
+    "DecisionLogger",
+    "StudyConfig",
+    "StudyOrchestrator",
     "DiveError",
     "ConfigError",
     "DataError",
