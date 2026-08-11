@@ -86,7 +86,8 @@ class DataIntelligence:
         datetime_cols = [
             col
             for col in X.columns
-            if X[col].dtype == object and looks_like_datetime(X[col])
+            if pd.api.types.is_datetime64_any_dtype(X[col])
+            or (X[col].dtype == object and looks_like_datetime(X[col]))
         ]
 
         # Build fine-grained semantic types dict
