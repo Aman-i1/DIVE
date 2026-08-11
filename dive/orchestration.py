@@ -76,22 +76,16 @@ class StudyOrchestrator:
             evidence={"problem_type": doc_report.problem_type, "n_rows": len(df)},
         )
 
-        # 3. Leakage & Validation Intelligence Audit
-        leak_detector = AdvancedLeakageDetector(target=self.config.target)
-        leak_report = leak_detector.detect(df)
+        # 3. Validation Intelligence Engine Audit
+        from dive.validation_engine import ValidationIntelligenceEngine
 
-        val_strategy = "StratifiedKFold" if doc_report.problem_type == "classification" else "KFold"
-        if self.config.group_column:
-            val_strategy = "GroupKFold"
-        elif self.config.time_column:
-            val_strategy = "TimeSeriesSplit"
-
-        self.logger.log(
-            component="ValidationEngine",
-            decision=f"Selected validation strategy: {val_strategy}(n_splits={self.config.cv_splits})",
-            reason="Based on dataset structure, group columns, and temporal ordering checks",
-            confidence=0.95,
-            evidence={"group_col": self.config.group_column, "time_col": self.config.time_column},
+        val_engine = ValidationIntelligenceEngine(target=self.config.target, logger=self.logger)
+        val_plan = val_engine.evaluate(
+            df,
+            problem_type=doc_report.problem_type,
+            user_group_column=self.config.group_column,
+            user_time_column=self.config.time_column,
+            n_splits=self.config.cv_splits,
         )
 
         # 4. Train Model Pipeline via Dive core engine

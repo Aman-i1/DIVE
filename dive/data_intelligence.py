@@ -89,6 +89,50 @@ class DataIntelligence:
             if X[col].dtype == object and looks_like_datetime(X[col])
         ]
 
+        # Build fine-grained semantic types dict
+        semantic_types: Dict[str, List[str]] = {}
+        for c in X.columns:
+            tags: List[str] = []
+            if c in datetime_cols:
+                tags.append("datetime")
+            elif c in self._detect_id_cols(X, n, exclude=datetime_cols):
+                tags.append("identifier")
+            elif X[c].nunique(dropna=True) <= 1:
+                tags.append("constant")
+            elif pd.api.types.is_numeric_dtype(X[c]):
+                tags.append("numeric")
+            elif X[c].nunique() > HIGH_CARDINALITY_THRESHOLD:
+                tags.append("categorical")
+                tags.append("high_cardinality")
+            else:
+                tags.append("categorical")
+
+            if X[c].isnull().any():
+                tags.append("nullable")
+            if X[c].isnull().mean() > 0.5:
+                tags.append("sparse")
+            semantic_types[c] = tags
+
+        # Infer dataset structure (IID vs Grouped vs Temporal vs Panel)
+        id_like = self._detect_id_cols(X, n, exclude=datetime_cols)
+        group_candidates = [
+            c for c in X.select_dtypes(include=["object", "int64"]).columns
+            if c not in id_like and 1 < X[c].nunique() < (0.5 * n)
+        ]
+        is_grouped = len(group_candidates) > 0
+        is_temporal = len(datetime_cols) > 0
+        is_panel = is_grouped and is_temporal
+        dup_count = int(df.duplicated().sum())
+
+        dataset_structure = {
+            "is_iid": not (is_grouped or is_temporal),
+            "is_grouped": is_grouped,
+            "is_temporal": is_temporal,
+            "is_panel": is_panel,
+            "group_candidates": group_candidates[:5],
+            "duplicate_rows": dup_count,
+        }
+
         self.profile_ = {
             "n_samples": n,
             "n_features": p,
@@ -108,7 +152,9 @@ class DataIntelligence:
             ],
             "constant_cols": [c for c in X.columns if X[c].nunique(dropna=True) <= 1],
             "datetime_cols": datetime_cols,
-            "id_like_cols": self._detect_id_cols(X, n, exclude=datetime_cols),
+            "id_like_cols": id_like,
+            "semantic_types": semantic_types,
+            "dataset_structure": dataset_structure,
             "n_numeric": int(X.select_dtypes(include=np.number).shape[1]),
             "n_categorical": int(X.select_dtypes(include="object").shape[1]),
             "n_classes": int(y.nunique()) if problem_type == "classification" else None,

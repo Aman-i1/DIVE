@@ -40,12 +40,14 @@ from dive.gate import DeploymentGate, GateVerdict
 from dive.info import DatasetInspector, DatasetInfoReport
 from dive.leakage import AdvancedLeakageDetector
 from dive.model_zoo import ModelZoo
-from dive.onnx_export import ONNXExporter
-from dive.orchestration import StudyConfig, StudyOrchestrator
-from dive.predictor import DivePredictor, load_predictor
 from dive.registry import ModelRegistry, PromotionGate
 from dive.resources import ResourceManager
 from dive.study import Study, create_study
+from dive.validation_engine import (
+    ValidationIntelligenceEngine,
+    ValidationPlan,
+    ValidationRiskScore,
+)
 
 __all__ = [
     "__version__",
@@ -84,6 +86,9 @@ __all__ = [
     "DecisionLogger",
     "StudyConfig",
     "StudyOrchestrator",
+    "ValidationIntelligenceEngine",
+    "ValidationPlan",
+    "ValidationRiskScore",
     "DiveError",
     "ConfigError",
     "DataError",
