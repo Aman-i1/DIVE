@@ -65,6 +65,22 @@ class AutoMLResourcePlan:
         return "\n".join(lines)
 
 
+@dataclass
+class SystemResources:
+    """Hardware resource snapshot."""
+
+    cpu_count: int
+    ram_total_mb: float
+    ram_available_mb: float
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            "cpu_count": self.cpu_count,
+            "ram_total_mb": round(self.ram_total_mb, 1),
+            "ram_available_mb": round(self.ram_available_mb, 1),
+        }
+
+
 class ResourceManager:
     """Estimates resource consumption and configures safe parallel workers."""
 
@@ -94,6 +110,22 @@ class ResourceManager:
             self.n_jobs = min(n_jobs, cpu_count)
 
         self.use_gpu = use_gpu
+
+    def get_system_resources(self) -> SystemResources:
+        """Return system hardware resources snapshot."""
+        sys_ram_mb = 8192.0
+        sys_avail_mb = 4096.0
+        try:
+            vm = psutil.virtual_memory()
+            sys_ram_mb = vm.total / (1024 * 1024)
+            sys_avail_mb = vm.available / (1024 * 1024)
+        except Exception:
+            pass
+        return SystemResources(
+            cpu_count=self.n_jobs,
+            ram_total_mb=sys_ram_mb,
+            ram_available_mb=sys_avail_mb,
+        )
 
     def create_plan(
         self,
