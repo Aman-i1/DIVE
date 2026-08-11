@@ -253,3 +253,104 @@ def _sanity_check_predictions(predictions: np.ndarray, frame: pd.DataFrame) -> N
         "The incoming columns are probably misaligned with the training schema. "
         "Verify the column order and dtypes of the data file.",
     )
+
+
+def run_interactive_predict(
+    console: Console,
+    model_path: str,
+    json_input: Optional[str] = None,
+) -> None:
+    """Interactive prediction machine - prompt user column by column or parse dict input."""
+    import json
+    artifact = _load_artifact(model_path)
+    console.banner("🎯 DIVE INTERACTIVE PREDICTION MACHINE", f"Loaded prediction engine: {Path(model_path).name}")
+
+    if isinstance(artifact, DivePredictor):
+        predictor = artifact
+    else:
+        best_est = artifact.best_estimator_
+        feat_eng = artifact.feature_engineer_
+        feat_cols = artifact.feature_columns_
+        target = artifact.target
+        prob_type = artifact.problem_type
+        label_enc = getattr(artifact, "label_encoder_", None)
+        schema = artifact._metadata.get("schema", {})
+        predictor = DivePredictor(
+            model_name=artifact.best_model_name_,
+            estimator=best_est,
+            feature_engineer=feat_eng,
+            feature_columns=feat_cols,
+            label_encoder=label_enc,
+            target=target,
+            problem_type=prob_type,
+            input_schema=schema,
+        )
+
+    schema = predictor.input_schema
+    req_cols = predictor.required_columns or [c["name"] for c in schema.get("columns", []) if c.get("required")]
+
+    row_data: Dict[str, Any] = {}
+
+    if json_input:
+        try:
+            row_data = json.loads(json_input)
+            console.success("Parsed input JSON dictionary.")
+        except Exception as exc:
+            raise SchemaError(f"Invalid JSON string in --input: {exc}")
+    else:
+        console.print("  Enter feature values below (press Enter to accept default example):")
+        console.print("")
+        cols_meta = {c["name"]: c for c in schema.get("columns", [])}
+
+        for i, col in enumerate(req_cols, 1):
+            meta = cols_meta.get(col, {})
+            kind = meta.get("kind", "numeric")
+            example = meta.get("example")
+            cats = meta.get("categories")
+
+            ex_prompt = f" [default: {example}]" if example is not None else ""
+            cat_prompt = f" (choices: {cats[:4]})" if cats else ""
+
+            prompt_str = f"  [{i}/{len(req_cols)}] Enter {col} ({kind}{cat_prompt}){ex_prompt}: "
+
+            try:
+                val = input(prompt_str).strip()
+            except (EOFError, KeyboardInterrupt):
+                console.print("")
+                console.warn("Input cancelled by user.")
+                return
+
+            if not val and example is not None:
+                val = str(example)
+
+            if kind == "numeric" and val:
+                try:
+                    val = float(val) if "." in val else int(val)
+                except ValueError:
+                    pass
+
+            row_data[col] = val
+
+    console.print("")
+    console.rule("Prediction Output")
+
+    pred = predictor.predict(row_data)[0]
+    console.kv("Target Column", predictor.target)
+    console.kv("Predicted Value / Class", str(pred))
+
+    if predictor.has_proba:
+        proba_df = predictor.predict_proba(row_data)
+        top_prob = float(proba_df.iloc[0].max())
+        top_cls = str(proba_df.iloc[0].idxmax())
+        console.kv("Top Confidence Score", f"{top_prob * 100:.1f}% ({top_cls})")
+        console.print("")
+        console.print("  Probability Breakdown:")
+        for cls_name, prob_val in proba_df.iloc[0].items():
+            prob_val = float(prob_val)
+            bar_len = int(prob_val * 25)
+            bar_str = "█" * bar_len + "░" * (25 - bar_len)
+            console.print(f"    • {cls_name:<16} : [{bar_str}] {prob_val * 100:.1f}%")
+
+    console.print("")
+    console.success("Prediction Machine execution complete.")
+

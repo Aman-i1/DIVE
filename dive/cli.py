@@ -263,24 +263,49 @@ def _train_settings(settings: Dict[str, Any]) -> Dict[str, Any]:
 
 # ----------------------------------------------------------------------
 @cli.command("predict")
-@click.option("--model", "model_path", required=True, type=click.Path(), help="Path to a .pkl written by `dive train`.")
-@click.option("--data", "data_path", required=True, type=click.Path(), help="Rows to score. Must carry the same feature columns used in training.")
+@click.argument("model_path_arg", required=False, type=click.Path())
+@click.option("--model", "model_path_opt", default=None, type=click.Path(), help="Path to model.pkl.")
+@click.argument("data_path_arg", required=False, type=click.Path())
+@click.option("--data", "data_path_opt", default=None, type=click.Path(), help="Path to data file.")
 @click.option("--output", "output_path", default=None, type=click.Path(), help="Where to write predictions. [default: predictions.csv]")
-@click.option("--proba", is_flag=True, help="Also emit one probability column per class (classification only).")
-@click.option("--include-input", is_flag=True, help="Copy the input columns into the output file alongside predictions.")
+@click.option("--proba", is_flag=True, help="Also emit class probabilities.")
+@click.option("--include-input", is_flag=True, help="Copy input columns alongside predictions.")
+@click.option("-i", "--interactive", is_flag=True, help="Launch Interactive Prediction Machine prompt mode.")
+@click.option("-in", "--input", "json_input", default=None, help="Predict single row from JSON string e.g. '{\"age\": 35}'")
 @click.pass_context
-def predict_command(ctx: click.Context, model_path: str, data_path: str, output_path: Optional[str], proba: bool, include_input: bool) -> None:
-    """Score new data with a saved model.
-
-    The incoming schema is checked against the training schema first: a missing
-    feature column fails immediately rather than silently misaligning columns.
+def predict_command(
+    ctx: click.Context,
+    model_path_arg: Optional[str],
+    model_path_opt: Optional[str],
+    data_path_arg: Optional[str],
+    data_path_opt: Optional[str],
+    output_path: Optional[str],
+    proba: bool,
+    include_input: bool,
+    interactive: bool,
+    json_input: Optional[str],
+) -> None:
+    """Score new data or run interactive prediction machine.
 
     \b
     Examples:
-      dive predict --model ./out/model.pkl --data new_rows.csv
-      dive predict --model ./out/model.pkl --data new.csv --proba --output scored.csv
+      dive predict ./out/model.pkl --data new_rows.csv
+      dive predict --model ./out/model.pkl --interactive
+      dive predict ./out/model.pkl --input '{"age": 35, "income": 75000}'
     """
-    from dive.commands.predict import run_predict
+    from dive.commands.predict import run_interactive_predict, run_predict
+
+    model_path = model_path_arg or model_path_opt
+    if not model_path:
+        raise click.UsageError("Missing model file path. Example: dive predict ./out/model.pkl --interactive")
+
+    if interactive or json_input:
+        run_interactive_predict(console=_console(ctx), model_path=model_path, json_input=json_input)
+        return
+
+    data_path = data_path_arg or data_path_opt
+    if not data_path:
+        raise click.UsageError("Missing data file path. Example: dive predict ./out/model.pkl --data new_rows.csv (or pass --interactive)")
 
     run_predict(
         console=_console(ctx),
@@ -290,6 +315,7 @@ def predict_command(ctx: click.Context, model_path: str, data_path: str, output_
         with_proba=proba,
         include_input=include_input,
     )
+
 
 
 # ----------------------------------------------------------------------

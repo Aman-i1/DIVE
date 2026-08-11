@@ -70,3 +70,19 @@ def test_cli_info(cli_runner: CliRunner, sample_csv: str) -> None:
     assert "churn" in res.output
 
 
+def test_pdf_report_generation(tmp_path: Path, sample_csv: str) -> None:
+    from dive.core import Dive
+    from dive.reporting import generate_pdf_report
+
+    df = pd.read_csv(sample_csv)
+    model = Dive(target="churn", mode="fast")
+    model.fit(df)
+
+    pdf_file = tmp_path / "test_report.pdf"
+    res_path = generate_pdf_report(model, pdf_file)
+    assert res_path is not None
+    assert pdf_file.exists()
+    assert pdf_file.stat().st_size > 0
+
+
+

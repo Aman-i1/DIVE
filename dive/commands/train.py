@@ -303,7 +303,7 @@ def run_train(
         console.kv("Plots", f"{len(plots)} PNG file(s) in {PLOTS_DIRNAME}/")
 
     if make_report:
-        from dive.reporting import build_html_report
+        from dive.reporting import build_html_report, generate_pdf_report
 
         report_path = build_html_report(
             dive,
@@ -312,10 +312,20 @@ def run_train(
             plots_dir=destination / PLOTS_DIRNAME if make_plots else None,
         )
         written["report"] = report_path
-        console.kv("Report", report_path.name)
+        console.kv("Report HTML", report_path.name)
+
+        pdf_path = generate_pdf_report(
+            dive,
+            destination / "report.pdf",
+            console=console,
+        )
+        if pdf_path:
+            written["pdf_report"] = pdf_path
+            console.kv("Research PDF", pdf_path.name)
 
     console.print("")
     console.rule("Leaderboard")
+
     console.table(leaderboard, max_rows=15, highlight_first=True)
     console.print("")
     console.success(f"All artifacts written to: {destination}")
