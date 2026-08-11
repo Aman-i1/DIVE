@@ -89,7 +89,7 @@ def test_cli_audit(cli_runner: CliRunner, sample_csv: str, tmp_path: Path) -> No
     cert_pdf = tmp_path / "cert.pdf"
     res = cli_runner.invoke(cli, ["audit", sample_csv, "--target", "churn", "--output", str(cert_pdf)])
     assert res.exit_code == 0
-    assert "DIVE COMPLIANCE & ML RELIABILITY AUDITOR" in res.output
+    assert "DIVE COMPLIANCE AND RELIABILITY AUDITOR" in res.output
     assert cert_pdf.exists()
 
 
