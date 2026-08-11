@@ -11,6 +11,7 @@ from dive.validation_engine import ValidationIntelligenceEngine, ValidationPlan
 
 def test_data_intelligence_structure() -> None:
     df = pd.DataFrame({
+        "row_id": ["r1", "r2", "r3", "r4", "r5", "r6"],
         "user_id": ["u1", "u1", "u2", "u2", "u3", "u3"],
         "timestamp": pd.date_range("2026-01-01", periods=6, freq="D"),
         "amount": [10.5, 20.0, 15.0, 30.0, 50.0, 60.0],
@@ -22,7 +23,8 @@ def test_data_intelligence_structure() -> None:
 
     assert "semantic_types" in profile
     assert "dataset_structure" in profile
-    assert profile["semantic_types"]["user_id"] == ["identifier"]
+    assert profile["semantic_types"]["row_id"] == ["identifier"]
+    assert "categorical" in profile["semantic_types"]["user_id"]
     assert profile["dataset_structure"]["is_panel"] is True
 
 
