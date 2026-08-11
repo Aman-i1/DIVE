@@ -10,7 +10,8 @@ import pandas as pd
 
 from dive.core import Dive
 from dive.exceptions import DataError, SchemaError
-from dive.utils.io import load_dataframe, save_dataframe
+from dive.predictor import DivePredictor, SchemaMismatch
+from dive.utils.io import load_dataframe, load_pickle, resolve_path, save_dataframe
 from dive.utils.logging import Console
 
 # Predictions with values beyond this range are almost certainly a schema mix-up.
@@ -26,15 +27,28 @@ def run_predict(
     with_proba: bool = False,
     include_input: bool = False,
 ) -> Dict[str, Any]:
-    """Load a model, verify the incoming schema, score rows, write a CSV."""
-    dive = Dive.load(model_path)
+    """Load a model, verify the incoming schema, score rows, write a CSV.
+
+    Accepts either artifact ``dive train`` writes: the full-run ``model.pkl``
+    or one of the per-model predictors under ``models/``. Both expose the same
+    predict surface, so the only difference is where the schema check lives.
+    """
+    artifact = _load_artifact(model_path)
 
     frame = load_dataframe(data_path)
     console.rule("dive predict")
-    console.kv("Model", Path(str(model_path)).name)
+    console.kv("Model", resolve_path(model_path).name)
     console.kv("Incoming rows", frame.shape[0])
     console.kv("Incoming columns", frame.shape[1])
 
+    if isinstance(artifact, DivePredictor):
+        return _predict_with_predictor(
+            console, artifact, frame, data_path, output_path,
+            with_proba=with_proba, include_input=include_input,
+            model_path=model_path,
+        )
+
+    dive = artifact
     if dive.feature_engineer_ is None or not dive.feature_columns_:
         raise SchemaError(
             "The saved model carries no fitted feature engineer.",
@@ -83,6 +97,72 @@ def run_predict(
     save_dataframe(output, output_path)
     console.kv("Predictions written", Path(str(output_path)).name)
     console.kv("Best model", dive.best_model_name_)
+    console.print("")
+    console.table(output.head(10))
+    console.print("")
+    console.success(f"Scored {len(output)} row(s) -> {output_path}")
+    return {"output": Path(str(output_path)), "model": Path(str(model_path))}
+
+
+def _load_artifact(model_path: str) -> Any:
+    """Return a ``Dive`` or a ``DivePredictor``, whichever the file holds."""
+    payload = load_pickle(model_path)
+    if isinstance(payload, DivePredictor):
+        return payload
+    return Dive.load(model_path)
+
+
+def _predict_with_predictor(
+    console: Console,
+    predictor: DivePredictor,
+    frame: pd.DataFrame,
+    data_path: str,
+    output_path: str,
+    with_proba: bool,
+    include_input: bool,
+    model_path: str,
+) -> Dict[str, Any]:
+    """Score rows with a single exported model.
+
+    The predictor validates the raw schema itself and raises ``SchemaMismatch``;
+    it is translated here so the CLI reports it as an ordinary dive error with a
+    hint rather than an unexpected internal failure.
+    """
+    try:
+        predictions = predictor.predict(frame)
+        probabilities = (
+            predictor.predict_proba(frame)
+            if with_proba and predictor.has_proba
+            else None
+        )
+    except SchemaMismatch as exc:
+        raise SchemaError(str(exc).split("\n")[0], predictor.describe_input()) from exc
+
+    if with_proba and probabilities is None:
+        raise SchemaError(
+            f"--proba is not available for {predictor.model_name}.",
+            f"This predictor solves a {predictor.problem_type} problem."
+            if predictor.problem_type != "classification"
+            else "The underlying model cannot produce probabilities.",
+        )
+
+    _sanity_check_predictions(predictions, frame)
+
+    if include_input:
+        output = frame.drop(
+            columns=[predictor.target], errors="ignore"
+        ).reset_index(drop=True)
+    else:
+        output = pd.DataFrame(index=range(len(predictions)))
+
+    output.insert(0, "prediction", predictions)
+    if probabilities is not None:
+        for name in probabilities.columns:
+            output[f"prob_{name}"] = probabilities[name].to_numpy()
+
+    save_dataframe(output, output_path)
+    console.kv("Predictions written", Path(str(output_path)).name)
+    console.kv("Model", predictor.model_name)
     console.print("")
     console.table(output.head(10))
     console.print("")

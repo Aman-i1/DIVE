@@ -191,7 +191,7 @@ def cli(ctx: click.Context, quiet: bool, show_traceback: bool) -> None:
 
 # ----------------------------------------------------------------------
 @cli.command("train")
-@click.option("--data", "data_path", default=None, type=click.Path(), help="Path to the training data (.csv, .parquet, .json, .xlsx). Required unless supplied via --config.")
+@click.option("--data", "data_path", default=None, type=click.Path(), help="Path to the training data. Any tabular format pandas can read (.csv, .tsv, .parquet, .json, .xlsx, .ods, .feather, .orc, .dta, .sav, .h5, .html, .xml, optionally .gz/.zip compressed). Quote paths containing spaces. Required unless supplied via --config.")
 @click.option("--target", "target", default=None, help="Name of the column to predict. Defaults to the last column.")
 @click.option("--mode", type=click.Choice(MODES), default=None, help="fast = small zoo, no tuning. balanced = full zoo + tuning + stacking. competition = adds feature selection and extra models. [default: balanced]")
 @click.option("--time-budget", type=float, default=None, help="Wall-clock seconds for the whole run. [default: 1800]")
@@ -283,7 +283,7 @@ def predict_command(ctx: click.Context, model_path: str, data_path: str, output_
 
 # ----------------------------------------------------------------------
 @cli.command("validate")
-@click.option("--data", "data_path", required=True, type=click.Path(), help="Path to the data file (.csv, .parquet, .json, .xlsx).")
+@click.option("--data", "data_path", required=True, type=click.Path(), help="Path to the data file. Any tabular format pandas can read. Quote paths containing spaces.")
 @click.option("--target", "target", default=None, help="Column to predict. Without it, only structural checks run.")
 @click.option("--test-size", type=float, default=0.2, show_default=True, help="Holdout fraction, used to reproduce the same split train will use.")
 @click.option("--random-state", type=int, default=42, show_default=True, help="Seed for the reproducible split.")
@@ -424,7 +424,11 @@ def deps_command(ctx: click.Context) -> None:
     console = _console(ctx)
     console.rule("Optional dependencies")
     for package in dependency_report():
-        mark = console.symbol("ok") if package.available else console.symbol("fail")
+        mark = (
+            console.status_symbol("ok")
+            if package.available
+            else console.status_symbol("fail")
+        )
         version = f"v{package.version}" if package.version else "not installed"
         console.print(f" {mark} {package.name:<20} {version:<16} {package.provides}")
     console.print("")

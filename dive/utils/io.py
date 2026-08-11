@@ -19,33 +19,96 @@ import pandas as pd
 from dive.exceptions import ConfigError, DataError, ModelError, TargetError
 
 # Extension -> reader family. Keys are lower-case, dot-prefixed.
+# Covers every tabular format pandas ships a reader for. Formats whose reader
+# needs a third-party engine (pyarrow, openpyxl, tables, pyreadstat, lxml) are
+# listed here and produce an install hint at read time rather than an
+# "unsupported file type" error, which would be misleading.
 _TABULAR_SUFFIXES = {
     ".csv": "csv",
     ".tsv": "csv",
     ".txt": "csv",
+    ".dat": "csv",
+    ".data": "csv",
+    ".psv": "csv",
     ".parquet": "parquet",
     ".pq": "parquet",
+    ".parq": "parquet",
     ".json": "json",
     ".jsonl": "jsonl",
+    ".ndjson": "jsonl",
     ".xlsx": "excel",
     ".xls": "excel",
+    ".xlsm": "excel",
+    ".xlsb": "excel",
+    ".ods": "excel",
     ".feather": "feather",
+    ".arrow": "feather",
+    ".orc": "orc",
+    ".h5": "hdf",
+    ".hdf": "hdf",
+    ".hdf5": "hdf",
+    ".dta": "stata",
+    ".sav": "spss",
+    ".zsav": "spss",
+    ".por": "spss",
+    ".sas7bdat": "sas",
+    ".xpt": "sas",
+    ".html": "html",
+    ".htm": "html",
+    ".xml": "xml",
+    ".pkl": "pickle",
+    ".pickle": "pickle",
+}
+
+# Compression suffixes that pandas' text readers decompress transparently. A
+# doubled extension such as data.csv.gz resolves against the inner suffix.
+_COMPRESSION_SUFFIXES = {".gz", ".bz2", ".zip", ".xz", ".zst", ".zstd", ".tar"}
+
+# Reader family -> install hint, used to turn an ImportError from a missing
+# engine into a message naming the exact package to install.
+_ENGINE_HINTS = {
+    "parquet": "pip install pyarrow",
+    "feather": "pip install pyarrow",
+    "orc": "pip install pyarrow",
+    "excel": "pip install openpyxl   (odfpy for .ods, xlrd for legacy .xls, pyxlsb for .xlsb)",
+    "hdf": "pip install tables",
+    "spss": "pip install pyreadstat",
+    "html": "pip install lxml html5lib beautifulsoup4",
+    "xml": "pip install lxml",
 }
 
 MODEL_SUFFIXES = (".pkl", ".pickle", ".joblib")
 
 
+def _strip_quotes(raw: str) -> str:
+    """Remove one layer of surrounding quotes from a user-supplied path.
+
+    Paths containing spaces are routinely wrapped in quotes, and Windows
+    Explorer's "Copy as path" emits a quoted string. When such a value reaches
+    us through a config file, a copy-paste, or a shell that does not strip
+    quotes itself, the quote characters become part of the filename and the
+    open fails with a confusing "not found". Only a matched pair is removed, so
+    a filename that legitimately contains a quote is left intact.
+    """
+    text = raw.strip()
+    for quote in ('"', "'"):
+        if len(text) >= 2 and text.startswith(quote) and text.endswith(quote):
+            return text[1:-1].strip()
+    return text
+
+
 def resolve_path(path: Any, must_exist: bool = False, kind: str = "file") -> Path:
     """Expand and normalise a user-supplied path.
 
-    Handles ``~`` expansion and relative paths identically across platforms.
-    When ``must_exist`` is set, raises :class:`DataError` naming the resolved
-    absolute path so the user can see exactly where the tool looked.
+    Handles ``~`` expansion, surrounding quotes, and relative paths identically
+    across platforms. When ``must_exist`` is set, raises :class:`DataError`
+    naming the resolved absolute path so the user can see exactly where the
+    tool looked.
     """
     if path is None:
         raise DataError("No path was provided.", "Expected a file or directory path.")
     try:
-        resolved = Path(str(path)).expanduser()
+        resolved = Path(_strip_quotes(str(path))).expanduser()
     except Exception as exc:
         raise DataError(f"Could not interpret path: {path!r} ({exc})") from exc
 
@@ -72,15 +135,110 @@ def ensure_dir(path: Any) -> Path:
     return directory
 
 
+def _payload_suffix(path: Path) -> str:
+    """Return the format-bearing suffix, looking past a compression suffix.
+
+    ``data.csv`` -> ``.csv`` and ``data.csv.gz`` -> ``.csv``.
+    """
+    suffixes = [s.lower() for s in path.suffixes]
+    if not suffixes:
+        return ""
+    if suffixes[-1] in _COMPRESSION_SUFFIXES and len(suffixes) >= 2:
+        return suffixes[-2]
+    return suffixes[-1]
+
+
 def _detect_format(path: Path) -> str:
+    """Map a filename to a reader family, seeing through compression suffixes."""
+    # data.csv.gz / data.json.zip: the compression is transparent to pandas, so
+    # the format is decided by the suffix underneath it.
+    payload = _payload_suffix(path)
+    if payload in _TABULAR_SUFFIXES:
+        return _TABULAR_SUFFIXES[payload]
+
+    # A file with no extension at all is almost always delimited text - UCI-style
+    # dataset dumps and shell redirections both produce them - and the CSV
+    # reader sniffs the delimiter, so this is a safe default. A file with an
+    # extension we do not know stays an error: guessing there would turn a typo
+    # into a confusing parser failure.
+    if payload == "":
+        return "csv"
+
     suffix = path.suffix.lower()
-    if suffix in _TABULAR_SUFFIXES:
-        return _TABULAR_SUFFIXES[suffix]
     supported = ", ".join(sorted(_TABULAR_SUFFIXES))
     raise DataError(
         f"Unsupported data file type: '{suffix or path.name}'",
-        f"Supported extensions are: {supported}",
+        f"Supported extensions are: {supported}\n"
+        "Text formats may additionally be compressed (.gz, .bz2, .zip, .xz, .zst).",
     )
+
+
+def _read_by_format(fmt: str, resolved: Path, max_rows: Optional[int]) -> pd.DataFrame:
+    """Dispatch to the pandas reader for one format family."""
+    if fmt == "csv":
+        # Extensions that name their own delimiter are read with it explicitly;
+        # anything else is sniffed by the python engine, which covers comma,
+        # semicolon, and whitespace-separated .dat/.txt files. Sniffing is not
+        # safe for a known delimiter: header cells containing spaces can make
+        # the sniffer pick the wrong character and silently split columns.
+        explicit = {".tsv": "\t", ".psv": "|"}
+        stem_suffix = _payload_suffix(resolved)
+        separator = explicit.get(stem_suffix)
+        return pd.read_csv(
+            resolved,
+            sep=separator,
+            engine="python" if separator is None else "c",
+            nrows=max_rows,
+            encoding="utf-8",
+            encoding_errors="replace",
+        )
+    if fmt == "parquet":
+        return pd.read_parquet(resolved)
+    if fmt == "json":
+        return pd.read_json(resolved)
+    if fmt == "jsonl":
+        return pd.read_json(resolved, lines=True)
+    if fmt == "excel":
+        # sheet_name=0 keeps the return type a DataFrame; without it a
+        # multi-sheet workbook would hand back a dict.
+        return pd.read_excel(resolved, sheet_name=0, nrows=max_rows)
+    if fmt == "feather":
+        return pd.read_feather(resolved)
+    if fmt == "orc":
+        return pd.read_orc(resolved)
+    if fmt == "hdf":
+        frame = pd.read_hdf(resolved)
+        if not isinstance(frame, pd.DataFrame):
+            frame = pd.DataFrame(frame)
+        return frame
+    if fmt == "stata":
+        return pd.read_stata(resolved)
+    if fmt == "spss":
+        return pd.read_spss(resolved)
+    if fmt == "sas":
+        return pd.read_sas(resolved)
+    if fmt == "html":
+        tables = pd.read_html(resolved)
+        if not tables:
+            raise DataError(
+                f"No HTML tables found in {resolved}",
+                "The file parsed, but contains no <table> element to read.",
+            )
+        return tables[0]
+    if fmt == "xml":
+        return pd.read_xml(resolved)
+    if fmt == "pickle":
+        obj = pd.read_pickle(resolved)
+        if isinstance(obj, pd.Series):
+            obj = obj.to_frame()
+        if not isinstance(obj, pd.DataFrame):
+            raise DataError(
+                f"The pickle at {resolved} does not contain a DataFrame.",
+                f"It unpickled to a {type(obj).__name__}. To score rows with a "
+                "saved model use --model, not --data.",
+            )
+        return obj
+    raise DataError(f"Unhandled data format: {fmt}")  # pragma: no cover
 
 
 def load_dataframe(path: Any, max_rows: Optional[int] = None) -> pd.DataFrame:
@@ -89,7 +247,8 @@ def load_dataframe(path: Any, max_rows: Optional[int] = None) -> pd.DataFrame:
     Parameters
     ----------
     path:
-        File to read. Format is inferred from the extension.
+        File to read. Format is inferred from the extension, seeing through a
+        trailing compression suffix.
     max_rows:
         Optional cap on rows read, used by fast-path sampling.
     """
@@ -112,35 +271,14 @@ def load_dataframe(path: Any, max_rows: Optional[int] = None) -> pd.DataFrame:
     fmt = _detect_format(resolved)
 
     try:
-        if fmt == "csv":
-            separator = "\t" if resolved.suffix.lower() == ".tsv" else None
-            frame = pd.read_csv(
-                resolved,
-                sep=separator,
-                engine="python" if separator is None else "c",
-                nrows=max_rows,
-                encoding="utf-8",
-                encoding_errors="replace",
-            )
-        elif fmt == "parquet":
-            frame = pd.read_parquet(resolved)
-        elif fmt == "json":
-            frame = pd.read_json(resolved)
-        elif fmt == "jsonl":
-            frame = pd.read_json(resolved, lines=True)
-        elif fmt == "excel":
-            frame = pd.read_excel(resolved, nrows=max_rows)
-        elif fmt == "feather":
-            frame = pd.read_feather(resolved)
-        else:  # pragma: no cover - guarded by _detect_format
-            raise DataError(f"Unhandled data format: {fmt}")
+        frame = _read_by_format(fmt, resolved, max_rows)
     except DataError:
         raise
     except ImportError as exc:
+        hint = _ENGINE_HINTS.get(fmt)
         raise DataError(
             f"Reading {resolved.suffix} files needs an extra package that is not installed.",
-            f"Underlying error: {exc}. Try: pip install pyarrow  (parquet/feather) "
-            "or pip install openpyxl  (xlsx).",
+            f"Underlying error: {exc}." + (f" Try: {hint}" if hint else ""),
         ) from exc
     except UnicodeDecodeError as exc:
         raise DataError(
@@ -160,7 +298,8 @@ def load_dataframe(path: Any, max_rows: Optional[int] = None) -> pd.DataFrame:
     except Exception as exc:
         raise DataError(f"Failed to read {resolved}: {type(exc).__name__}: {exc}") from exc
 
-    if max_rows is not None and fmt in {"parquet", "json", "jsonl", "feather"}:
+    # Readers without an nrows parameter are truncated after the fact.
+    if max_rows is not None and fmt not in {"csv", "excel"}:
         frame = frame.head(max_rows)
 
     if frame.shape[0] == 0:
@@ -272,7 +411,7 @@ def save_dataframe(frame: pd.DataFrame, path: Any, index: bool = False) -> Path:
 
     suffix = resolved.suffix.lower()
     try:
-        if suffix in {".csv", ".txt", ""}:
+        if suffix in {".csv", ".txt", ".dat", ".data", ""}:
             if suffix == "":
                 resolved = resolved.with_suffix(".csv")
             frame.to_csv(resolved, index=index, encoding="utf-8", lineterminator="\n")
@@ -280,18 +419,37 @@ def save_dataframe(frame: pd.DataFrame, path: Any, index: bool = False) -> Path:
             frame.to_csv(
                 resolved, index=index, sep="\t", encoding="utf-8", lineterminator="\n"
             )
-        elif suffix in {".parquet", ".pq"}:
+        elif suffix == ".psv":
+            frame.to_csv(
+                resolved, index=index, sep="|", encoding="utf-8", lineterminator="\n"
+            )
+        elif suffix in {".parquet", ".pq", ".parq"}:
             frame.to_parquet(resolved, index=index)
         elif suffix == ".json":
             frame.to_json(resolved, orient="records", indent=2)
-        elif suffix == ".jsonl":
+        elif suffix in {".jsonl", ".ndjson"}:
             frame.to_json(resolved, orient="records", lines=True)
-        elif suffix in {".xlsx", ".xls"}:
+        elif suffix in {".xlsx", ".xls", ".xlsm", ".ods"}:
             frame.to_excel(resolved, index=index)
+        elif suffix in {".feather", ".arrow"}:
+            frame.reset_index(drop=not index).to_feather(resolved)
+        elif suffix == ".orc":
+            frame.to_orc(resolved, index=index)
+        elif suffix == ".dta":
+            frame.to_stata(resolved, write_index=index)
+        elif suffix in {".html", ".htm"}:
+            frame.to_html(resolved, index=index)
+        elif suffix == ".xml":
+            frame.to_xml(resolved, index=index)
+        elif suffix in {".pkl", ".pickle"}:
+            frame.to_pickle(resolved)
+        elif suffix in {".h5", ".hdf", ".hdf5"}:
+            frame.to_hdf(resolved, key="data", mode="w")
         else:
             raise DataError(
                 f"Cannot write output with extension '{suffix}'.",
-                "Use .csv, .tsv, .parquet, .json, .jsonl, or .xlsx.",
+                "Use .csv, .tsv, .psv, .parquet, .json, .jsonl, .xlsx, .ods, "
+                ".feather, .orc, .dta, .html, .xml, .pkl, or .h5.",
             )
     except DataError:
         raise

@@ -281,6 +281,7 @@ class Dive:
         self.feature_engineer_: Optional[FeatureEngineer] = None
         self.feature_columns_: Optional[List[str]] = None
         self.label_encoder_: Optional[LabelEncoder] = None
+        self.label_lookup_: Dict[str, Any] = {}
         self.results_df_: Optional[pd.DataFrame] = None
         self.fitted_pipelines_: Dict[str, Any] = {}
         self.best_model_name_: Optional[str] = None
@@ -299,6 +300,7 @@ class Dive:
         self._decide_pca = False
         self._fs_step_used = False
         self._fit_seconds: Optional[float] = None
+        self._raw_training_frame: Optional[pd.DataFrame] = None
 
     # -- timing ---------------------------------------------------------
     def _elapsed(self) -> float:
@@ -362,6 +364,14 @@ class Dive:
                 index=y_raw.index,
                 name=self.target,
             )
+            # Labels are stringified before encoding so that mixed-type targets
+            # (1, "1", True) cannot make LabelEncoder raise on an unorderable
+            # comparison. That would otherwise leak into predictions: a model
+            # trained on 0/1 integers would return "0"/"1" strings. This lookup
+            # restores the original value - and its dtype - at decode time.
+            self.label_lookup_ = {
+                str(value): value for value in pd.unique(y_raw.dropna())
+            }
         else:
             y_encoded = pd.to_numeric(y_raw, errors="coerce").astype("float32")
             if y_encoded.isna().any():
@@ -373,6 +383,9 @@ class Dive:
                 df, y_encoded = df[keep], y_encoded[keep]
 
         X_raw = df.drop(columns=[self.target])
+        # Kept for the per-model predictor bundles: they record the schema of
+        # the data as the user supplied it, before any engineering.
+        self._raw_training_frame = X_raw.head(200).copy()
 
         use_advanced = self.mode in ("balanced", "competition")
         self.feature_engineer_ = FeatureEngineer(
@@ -581,16 +594,14 @@ class Dive:
 
                 took = time.time() - model_started
                 score = row[self._primary_score_col]
-                self.console.info(
-                    f"  {self.console.symbol('ok')} [{index}/{total}] {name:<20} "
-                    f"{self._primary_score_col}={score:.4f}  "
-                    f"({took:.1f}s, {self._elapsed():.0f}s/{self.time_budget:.0f}s budget)"
+                self.console.model_result(
+                    index, total, name, self._primary_score_col, score,
+                    took, self._elapsed(), self.time_budget,
                 )
             except Exception as exc:
                 self.skipped_models_[name] = f"{type(exc).__name__}: {exc}"
-                self.console.info(
-                    f"  {self.console.symbol('fail')} [{index}/{total}] {name:<20} "
-                    f"failed: {type(exc).__name__}: {exc}"
+                self.console.model_failed(
+                    index, total, name, f"{type(exc).__name__}: {exc}"
                 )
         return results
 
@@ -684,7 +695,7 @@ class Dive:
                 )
                 if row[self._primary_score_col] > current:
                     self.console.info(
-                        f"      {self.console.symbol('up')} {name}: "
+                        f"      {self.console.status_symbol('up')} {name}: "
                         f"{current:.4f} -> {row[self._primary_score_col]:.4f}"
                     )
                     self.cv_scores_[tuned_name] = cv_scores
@@ -693,7 +704,7 @@ class Dive:
                 else:
                     self._log(f"      = {name}: tuning did not improve the score.")
             except Exception as exc:
-                self._log(f"      {self.console.symbol('fail')} Tuning {name} failed: {exc}")
+                self._log(f"      {self.console.status_symbol('fail')} Tuning {name} failed: {exc}")
 
     def _build_stack(self, X_train, y_train, X_test, y_test) -> None:
         """Stack the top models when the mode and budget allow it."""
@@ -735,7 +746,7 @@ class Dive:
             self._append_result(row)
             self.fitted_pipelines_["StackedEnsemble"] = stacked
             self.console.info(
-                f"      {self.console.symbol('ok')} StackedEnsemble "
+                f"      {self.console.status_symbol('ok')} StackedEnsemble "
                 f"{self._primary_score_col}={row[self._primary_score_col]:.4f} "
                 f"({len(stacked.base_estimators)} base models)"
             )
@@ -808,8 +819,8 @@ class Dive:
         prepared = self._prepare_features(new_df)
         predictions = self.best_estimator_.predict(prepared)
         if self.problem_type == "classification" and self.label_encoder_ is not None:
-            predictions = self.label_encoder_.inverse_transform(
-                np.asarray(predictions).astype(int)
+            predictions = decode_labels(
+                predictions, self.label_encoder_, getattr(self, "label_lookup_", None)
             )
         return np.asarray(predictions)
 
@@ -845,6 +856,7 @@ class Dive:
             "feature_columns": self.feature_columns_,
             "best_estimator": self.best_estimator_,
             "label_encoder": self.label_encoder_,
+            "label_lookup": getattr(self, "label_lookup_", {}),
             "results_df": self.results_df_,
             "metadata": self._metadata,
             "problem_type": self.problem_type,
@@ -855,6 +867,66 @@ class Dive:
         saved = save_pickle(payload, path)
         self._log(f"      Model saved to {saved}")
         return saved
+
+    # ------------------------------------------------------------------
+    def build_predictors(self, dataset_name: str = "") -> Dict[str, Any]:
+        """Return one self-contained predictor per trained model.
+
+        Each predictor pairs a fitted estimator with the *fitted* feature
+        engineer, the training column order, and the label encoder, so it
+        consumes raw rows in the shape of the original data file. Without this
+        pairing an exported estimator is unusable: it expects engineered,
+        encoded columns that a caller holding raw CSV rows cannot produce.
+        """
+        from dive.predictor import DivePredictor, build_input_schema
+
+        if self.feature_engineer_ is None or self._raw_training_frame is None:
+            raise TrainingError(
+                "Cannot build predictors before fitting.",
+                "Call fit() first.",
+            )
+
+        schema = build_input_schema(
+            self._raw_training_frame,
+            target=str(self.target),
+            dropped_columns=self.feature_engineer_.drop_cols_,
+        )
+        metrics_by_model = self._metrics_by_model()
+        version = self._metadata.get("dive_version") or _package_version()
+        stamp = _timestamp()
+
+        predictors: Dict[str, Any] = {}
+        for name, estimator in self.fitted_pipelines_.items():
+            predictors[name] = DivePredictor(
+                model_name=name,
+                estimator=estimator,
+                feature_engineer=self.feature_engineer_,
+                feature_columns=list(self.feature_columns_ or []),
+                label_encoder=self.label_encoder_,
+                label_lookup=dict(getattr(self, "label_lookup_", {}) or {}),
+                target=str(self.target),
+                problem_type=str(self.problem_type),
+                input_schema=schema,
+                metrics=metrics_by_model.get(name, {}),
+                dataset_name=dataset_name,
+                dive_version=version,
+                trained_at=stamp,
+            )
+        return predictors
+
+    def _metrics_by_model(self) -> Dict[str, Dict[str, Any]]:
+        """Leaderboard rows keyed by model name, without private columns."""
+        if self.results_df_ is None:
+            return {}
+        metrics: Dict[str, Dict[str, Any]] = {}
+        for record in self.results_df_.to_dict(orient="records"):
+            name = str(record.get("Model"))
+            metrics[name] = {
+                key: (None if isinstance(value, float) and np.isnan(value) else value)
+                for key, value in record.items()
+                if not str(key).startswith("_") and key != "Model"
+            }
+        return metrics
 
     @classmethod
     def load(cls, path: Any = "dive_model.pkl") -> "Dive":
@@ -873,6 +945,7 @@ class Dive:
         instance.feature_columns_ = payload.get("feature_columns")
         instance.best_estimator_ = payload.get("best_estimator")
         instance.label_encoder_ = payload.get("label_encoder")
+        instance.label_lookup_ = payload.get("label_lookup", {}) or {}
         instance.results_df_ = payload.get("results_df")
         instance.profile_ = payload.get("profile") or metadata.get("profile")
         instance.cv_scores_ = payload.get("cv_scores", {}) or {}
@@ -992,6 +1065,27 @@ class Dive:
 
 
 # ----------------------------------------------------------------------
+# ----------------------------------------------------------------------
+def decode_labels(
+    predictions: Any,
+    label_encoder: Any,
+    lookup: Optional[Dict[str, Any]] = None,
+) -> np.ndarray:
+    """Turn encoded class indices back into the labels the user supplied.
+
+    ``LabelEncoder`` is fitted on stringified labels, so its ``inverse_transform``
+    yields strings. When ``lookup`` is available the original value - and its
+    dtype - is restored, so a model trained on 0/1 integers predicts integers
+    rather than "0"/"1". Falls back to the string form for models pickled before
+    the lookup existed.
+    """
+    decoded = label_encoder.inverse_transform(np.asarray(predictions).astype(int))
+    if not lookup:
+        return np.asarray(decoded)
+    restored = [lookup.get(str(value), value) for value in decoded]
+    return np.asarray(restored)
+
+
 def _inner_model(estimator: Any) -> Optional[Any]:
     """Unwrap a pipeline/booster wrapper down to the actual estimator."""
     if estimator is None:
@@ -1027,6 +1121,13 @@ def _package_version() -> str:
         return version("dive")
     except Exception:
         return "0.1.0"
+
+
+def _timestamp() -> str:
+    """UTC ISO-8601 stamp recorded on exported predictors."""
+    from datetime import datetime, timezone
+
+    return datetime.now(timezone.utc).isoformat(timespec="seconds")
 
 
 def quick_dive(

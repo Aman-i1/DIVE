@@ -20,7 +20,7 @@ def run_report(
 
     dive = Dive.load(model_path)
     console.rule("dive report")
-    console.kv("Model", Path(str(model_path)).name)
+    console.kv("Model", resolve_path(model_path).name)
     console.kv("Best model", dive.best_model_name_)
 
     validation = _load_sidecar_validation(model_path)
@@ -59,7 +59,7 @@ def run_explain(
     if output_path:
         written = build_explanation_html(dive, output_path)
         console.rule("dive explain")
-        console.kv("Model", Path(str(model_path)).name)
+        console.kv("Model", resolve_path(model_path).name)
         console.success(f"Explanation written to {written}")
         if open_browser:
             _open_in_browser(written, console)
@@ -69,18 +69,27 @@ def run_explain(
     console.rule(f"How {dive.best_model_name_} was built")
     for step in explanation["steps"]:
         console.print("")
-        console.print(f"  {step['title']}")
+        from dive.utils.logging import Style
+
+        console.print(f"  {console.paint(step['title'], Style.BRIGHT, Style.BOLD)}")
         for line in step["lines"]:
-            console.print(f"    {console.symbol('bullet')} {line}")
+            console.print(f"    {console.status_symbol('bullet')} {line}")
 
     importances = dive.feature_importances(top_n=15)
     if importances is not None and not importances.empty:
+        from dive.utils.logging import Style
+
         console.print("")
-        console.print("  Top features")
+        console.print(f"  {console.paint('Top features', Style.BRIGHT, Style.BOLD)}")
         maximum = float(importances["importance"].max()) or 1.0
         for _, row in importances.iterrows():
             bar = "#" * max(1, int(28 * float(row["importance"]) / maximum))
-            console.print(f"    {str(row['feature'])[:34]:<34} {bar} {row['importance']:.4f}")
+            value = f"{float(row['importance']):.4f}"
+            console.print(
+                f"    {str(row['feature'])[:34]:<34} "
+                f"{console.paint(bar, Style.ACCENT)} "
+                f"{console.paint(value, Style.MUTED)}"
+            )
 
     console.print("")
     console.print(

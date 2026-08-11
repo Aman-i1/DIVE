@@ -77,6 +77,152 @@ def test_train_writes_all_artifacts(runner, binary_df, csv_factory, tmp_path):
     assert (out / "plots").is_dir()
 
 
+def test_train_writes_one_predictor_per_model(
+    runner, binary_df, csv_factory, tmp_path
+):
+    """Every leaderboard entry gets a pickle named <dataset>__<model>.pkl."""
+    data = csv_factory(binary_df, name="customers.csv")
+    out = tmp_path / "out"
+    result = _train(runner, data, out)
+    assert result.exit_code == 0, result.output
+
+    models_dir = out / "models"
+    assert models_dir.is_dir()
+    assert (models_dir / "input_schema.json").is_file()
+    assert (models_dir / "how_to_predict.py").is_file()
+
+    board = pd.read_csv(out / "leaderboard.csv")
+    exported = {p.name for p in models_dir.glob("*.pkl")}
+    assert exported
+    for name in board["Model"]:
+        assert any(p.startswith("customers__") and name in p for p in exported), name
+
+
+def test_exported_predictor_scores_raw_rows(runner, binary_df, csv_factory, tmp_path):
+    """The pickle must consume the source schema, not the encoded matrix."""
+    import pickle
+
+    data = csv_factory(binary_df, name="customers.csv")
+    out = tmp_path / "out"
+    assert _train(runner, data, out).exit_code == 0
+
+    pkl = next((out / "models").glob("customers__*.pkl"))
+    predictor = pickle.loads(pkl.read_bytes())
+
+    raw = binary_df.drop(columns=["target"])
+    predictions = predictor.predict(raw)
+    assert len(predictions) == len(raw)
+    assert set(predictions) <= set(binary_df["target"].unique())
+
+
+def test_train_multiclass_string_labels(runner, multiclass_df, csv_factory, tmp_path):
+    """Regression test: multiclass targets must not crash any zoo model.
+
+    XGBoost in particular needs the multiclass eval metric; with the binary
+    'logloss' it aborts with a prediction/label size mismatch.
+    """
+    data = csv_factory(multiclass_df, name="iris.csv")
+    out = tmp_path / "out"
+    result = _train(
+        runner, data, out, target="species", extra=["--mode", "balanced"]
+    )
+    assert result.exit_code == 0, result.output
+
+    metadata = json.loads((out / "metadata.json").read_text(encoding="utf-8"))
+    assert metadata["label_classes"] == ["setosa", "versicolor", "virginica"]
+
+    # Time-budget skips are legitimate; a crash is not.
+    crashed = {
+        name: why
+        for name, why in metadata.get("skipped_models", {}).items()
+        if "time budget" not in why
+    }
+    assert not crashed, f"models crashed on multiclass data: {crashed}"
+
+    board = pd.read_csv(out / "leaderboard.csv")
+    if "XGBoost" in set(board["Model"]):
+        score = board.loc[board["Model"] == "XGBoost", "Test Accuracy"].iloc[0]
+        assert score > 0.5
+
+
+def test_train_accepts_quoted_path_with_spaces(
+    runner, binary_df, csv_factory, tmp_path
+):
+    data = csv_factory(binary_df, name="my sales data.csv")
+    out = tmp_path / "out"
+    result = runner.invoke(
+        cli,
+        [
+            "train",
+            "--data", f'"{data}"',
+            "--target", "target",
+            "--mode", "fast",
+            "--output", str(out),
+            "--no-plots", "--no-report",
+        ],
+        catch_exceptions=False,
+    )
+    assert result.exit_code == 0, result.output
+    assert (out / "model.pkl").is_file()
+    # The stripped quote must not survive into displayed names or filenames.
+    assert "my sales data.csv" in result.output
+    assert 'data.csv"' not in result.output
+    assert list((out / "models").glob("my_sales_data__*.pkl"))
+
+
+def test_train_reads_non_csv_input(runner, binary_df, tmp_path):
+    """--data should accept any format pandas can read, not just CSV."""
+    pytest.importorskip("pyarrow")
+    data = tmp_path / "data.parquet"
+    binary_df.to_parquet(data, index=False)
+    out = tmp_path / "out"
+    result = _train(runner, data, out, extra=["--no-plots", "--no-report"])
+    assert result.exit_code == 0, result.output
+    assert (out / "model.pkl").is_file()
+
+
+def test_predict_with_a_per_model_pickle(runner, binary_df, csv_factory, tmp_path):
+    """`dive predict --model` accepts an exported per-model predictor too."""
+    data = csv_factory(binary_df, name="customers.csv")
+    out = tmp_path / "out"
+    assert _train(runner, data, out).exit_code == 0
+
+    pkl = next((out / "models").glob("customers__*.pkl"))
+    new_rows = csv_factory(binary_df.drop(columns=["target"]).head(8), "new.csv")
+    predictions = tmp_path / "p.csv"
+
+    result = runner.invoke(
+        cli,
+        ["predict", "--model", str(pkl), "--data", str(new_rows),
+         "--output", str(predictions)],
+        catch_exceptions=False,
+    )
+    assert result.exit_code == 0, result.output
+    frame = pd.read_csv(predictions)
+    assert "prediction" in frame.columns
+    assert len(frame) == 8
+
+
+def test_predict_with_per_model_pickle_reports_schema_mismatch(
+    runner, binary_df, csv_factory, tmp_path
+):
+    data = csv_factory(binary_df, name="customers.csv")
+    out = tmp_path / "out"
+    assert _train(runner, data, out).exit_code == 0
+
+    pkl = next((out / "models").glob("customers__*.pkl"))
+    bad = csv_factory(pd.DataFrame({"unrelated": [1, 2, 3]}), "bad.csv")
+
+    result = runner.invoke(
+        cli,
+        ["predict", "--model", str(pkl), "--data", str(bad),
+         "--output", str(tmp_path / "p.csv")],
+    )
+    assert result.exit_code == 1
+    assert "Traceback" not in result.output
+    assert "feature_a" in result.output
+
+
 def test_train_report_is_valid_html(runner, binary_df, csv_factory, tmp_path):
     data = csv_factory(binary_df)
     out = tmp_path / "out"

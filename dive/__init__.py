@@ -29,15 +29,18 @@ from dive.exceptions import (
 )
 from dive.feature_engineering import FeatureEngineer
 from dive.model_zoo import ModelZoo
+from dive.predictor import DivePredictor, load_predictor
 
 __all__ = [
     "__version__",
     "Dive",
     "DataIntelligence",
+    "DivePredictor",
     "Evaluator",
     "FeatureEngineer",
     "ModelZoo",
     "build_preprocessor",
+    "load_predictor",
     "quick_dive",
     "DiveError",
     "ConfigError",

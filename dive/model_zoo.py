@@ -315,20 +315,32 @@ class ModelZoo:
                 if n <= _KNN_CAPACITY_CAP:
                     models["KNN"] = KNeighborsClassifier(n_neighbors=7, n_jobs=-1)
                 if is_available("xgboost"):
-                    models["XGBoost"] = _make_xgb_classifier(
+                    n_classes = int(self.profile.get("n_classes") or 2)
+                    xgb_clf_kwargs: Dict[str, Any] = dict(
                         early_stopping_rounds=50,
                         n_estimators=500,
                         learning_rate=0.05,
                         max_depth=6,
                         subsample=0.8,
                         colsample_bytree=0.8,
-                        eval_metric="logloss",
                         random_state=rs,
                         n_jobs=-1,
                         device=gpu,
                         verbosity=0,
-                        scale_pos_weight=self.profile.get("imbalance_ratio") or 1.0,
                     )
+                    if n_classes > 2:
+                        # logloss is a binary-only metric: it compares the raw
+                        # margin to labels, so on multiclass data the prediction
+                        # matrix is wider than the label vector and XGBoost
+                        # aborts with a size-mismatch check failure. mlogloss is
+                        # the multiclass equivalent.
+                        xgb_clf_kwargs["eval_metric"] = "mlogloss"
+                    else:
+                        xgb_clf_kwargs["eval_metric"] = "logloss"
+                        xgb_clf_kwargs["scale_pos_weight"] = (
+                            self.profile.get("imbalance_ratio") or 1.0
+                        )
+                    models["XGBoost"] = _make_xgb_classifier(**xgb_clf_kwargs)
                 lightgbm = load_optional("lightgbm")
                 if lightgbm is not None:
                     models["LightGBM"] = lightgbm.LGBMClassifier(

@@ -40,6 +40,27 @@ def binary_df(rng) -> pd.DataFrame:
 
 
 @pytest.fixture
+def multiclass_df(rng) -> pd.DataFrame:
+    """Three-class frame with string labels, shaped like iris.
+
+    Multiclass is its own code path for the boosting models: XGBoost needs
+    ``mlogloss`` rather than the binary ``logloss``, and label encoding has to
+    round-trip back to the original strings.
+    """
+    n = 180
+    petal = np.concatenate([rng.normal(loc, 0.4, n // 3) for loc in (1.5, 4.3, 5.6)])
+    sepal = np.concatenate([rng.normal(loc, 0.4, n // 3) for loc in (5.0, 5.9, 6.6)])
+    return pd.DataFrame(
+        {
+            "petal length (cm)": petal,
+            "sepal length (cm)": sepal,
+            "noise": rng.normal(size=n),
+            "species": np.repeat(["setosa", "versicolor", "virginica"], n // 3),
+        }
+    )
+
+
+@pytest.fixture
 def regression_df(rng) -> pd.DataFrame:
     n = 180
     a = rng.normal(size=n)

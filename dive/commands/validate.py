@@ -5,7 +5,7 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any, Dict, Optional
 
-from dive.utils.io import load_dataframe, validate_target, write_text
+from dive.utils.io import load_dataframe, resolve_path, validate_target, write_text
 from dive.utils.logging import Console
 from dive.validation import FAIL, WARN, run_validation_suite
 
@@ -28,7 +28,7 @@ def run_validate(
     frame = load_dataframe(data_path)
 
     console.rule("dive validate")
-    console.kv("Data file", Path(str(data_path)).name)
+    console.kv("Data file", resolve_path(data_path).name)
     console.kv("Rows x columns", f"{frame.shape[0]} x {frame.shape[1]}")
 
     if target is not None:

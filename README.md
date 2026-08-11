@@ -106,6 +106,32 @@ Common flags: `--time-budget` (seconds), `--test-size`, `--cv-folds`,
 `--random-state`, `--time-series`, `--config`, `--no-plots`, `--no-report`,
 `--skip-validation`.
 
+### Input formats
+
+`--data` reads any tabular format pandas supports — the reader is chosen from
+the file extension:
+
+| | |
+|---|---|
+| Text | `.csv` `.tsv` `.psv` `.txt` `.dat` `.data` (delimiter sniffed) |
+| Columnar | `.parquet` `.pq` `.feather` `.arrow` `.orc` |
+| Spreadsheet | `.xlsx` `.xls` `.xlsm` `.xlsb` `.ods` |
+| Structured | `.json` `.jsonl` `.ndjson` `.xml` `.html` |
+| Statistical | `.dta` (Stata) `.sav` (SPSS) `.sas7bdat` `.xpt` (SAS) |
+| Other | `.h5` `.hdf5` `.pkl` |
+
+Text formats may also be compressed (`.csv.gz`, `.json.zip`, `.bz2`, `.xz`,
+`.zst`). Some formats need an extra engine — if one is missing, the error names
+the package to install. Formats that need no extension at all are read as
+delimited text.
+
+Quote paths containing spaces; surrounding quotes are stripped, so a path
+copied straight from Explorer works:
+
+```bash
+dive train --data "C:\Users\me\My Data\sales report.xlsx" --target revenue
+```
+
 Any flag can live in a YAML file instead:
 
 ```yaml
@@ -178,6 +204,11 @@ out/
 ├── report.html         # self-contained report, plots inlined
 ├── validation.json     # machine-readable crosscheck verdicts
 ├── metadata.json       # settings, schema, timings, skipped models
+├── models/             # one standalone predictor per trained model
+│   ├── <dataset>__XGBoost.pkl
+│   ├── <dataset>__RandomForest.pkl
+│   ├── input_schema.json    # the raw columns every predictor expects
+│   └── how_to_predict.py    # runnable usage example
 └── plots/
     ├── leaderboard.png
     ├── comparison.png
@@ -186,6 +217,43 @@ out/
 ```
 
 File names are stable, so scripts and CI jobs can depend on them.
+
+### Standalone predictors
+
+Each file in `models/` holds a `DivePredictor`: the fitted estimator bundled
+with the feature engineering it was trained on. That pairing matters — the
+estimator itself was fitted on encoded columns (dates expanded, categories
+encoded, labels integer-mapped), so it cannot consume raw rows on its own. The
+predictor applies the same fitted transforms first, which means **you pass it
+data in the shape of your original file**:
+
+```python
+import pickle
+
+with open("out/models/iris__XGBoost.pkl", "rb") as handle:
+    predictor = pickle.load(handle)
+
+print(predictor.describe_input())   # required columns, dtypes, an example row
+
+predictor.predict({"sepal length (cm)": 5.1, "sepal width (cm)": 3.5,
+                   "petal length (cm)": 1.4, "petal width (cm)": 0.2})
+# array(['setosa'], dtype=object)
+
+predictor.predict(pd.read_csv("new_rows.csv"))   # or a whole raw file
+predictor.predict_proba(rows)                    # DataFrame, columns = class names
+```
+
+Accepts a DataFrame, one dict, or a list of dicts. Column order does not
+matter, the target column may be present or absent, and unseen categories and
+missing values are handled the same way they were during training. A missing
+required column raises an error naming it rather than silently misaligning.
+
+Either artifact works with the CLI:
+
+```bash
+dive predict --model ./out/model.pkl --data new.csv                    # best model
+dive predict --model ./out/models/iris__XGBoost.pkl --data new.csv     # a specific one
+```
 
 ---
 

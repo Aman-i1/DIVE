@@ -131,22 +131,48 @@ class ValidationReport:
         }
 
     def render(self, console: Any = None) -> str:
-        """Return a printable pass/warn/fail report."""
+        """Return a printable pass/warn/fail report.
+
+        When ``console`` is supplied and it is emitting colour, each verdict mark
+        is tinted. The escape wraps the whole ``[PASS]`` token, leaving the inner
+        word intact for anything that greps the output. ``check.status`` and
+        ``check.summary`` themselves are never coloured, so ``to_dict`` and the
+        HTML report stay free of escape sequences.
+        """
         marks = {PASS: "[PASS]", WARN: "[WARN]", FAIL: "[FAIL]", SKIP: "[SKIP]"}
+        tints = {}
+        if console is not None and getattr(console, "color", False):
+            from dive.utils.logging import Style
+
+            tints = {
+                PASS: (Style.SUCCESS,),
+                WARN: (Style.WARN,),
+                FAIL: (Style.ERROR, Style.BOLD),
+                SKIP: (Style.MUTED,),
+            }
+
+        def paint(text: str, status: str) -> str:
+            styles = tints.get(status)
+            if not styles:
+                return text
+            return console.paint(text, *styles)
+
         lines: List[str] = []
         for check in self.checks:
-            lines.append(f" {marks.get(check.status, '[????]')} {check.name}: {check.summary}")
+            mark = paint(marks.get(check.status, "[????]"), check.status)
+            lines.append(f" {mark} {check.name}: {check.summary}")
             for detail in check.details[:8]:
                 lines.append(f"          {detail}")
             if len(check.details) > 8:
                 lines.append(f"          ... and {len(check.details) - 8} more")
         tally = self.counts()
         lines.append("")
-        lines.append(
+        summary = (
             f" Summary: {tally[PASS]} passed, {tally[WARN]} warning(s), "
             f"{tally[FAIL]} failure(s)"
             + (f", {tally[SKIP]} skipped" if tally.get(SKIP) else "")
         )
+        lines.append(paint(summary, self.worst_status))
         return "\n".join(lines)
 
 # ----------------------------------------------------------------------
