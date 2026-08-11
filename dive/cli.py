@@ -191,7 +191,8 @@ def cli(ctx: click.Context, quiet: bool, show_traceback: bool) -> None:
 
 # ----------------------------------------------------------------------
 @cli.command("train")
-@click.option("--data", "data_path", default=None, type=click.Path(), help="Path to the training data. Any tabular format pandas can read (.csv, .tsv, .parquet, .json, .xlsx, .ods, .feather, .orc, .dta, .sav, .h5, .html, .xml, optionally .gz/.zip compressed). Quote paths containing spaces. Required unless supplied via --config.")
+@click.argument("data_path_arg", required=False, type=click.Path())
+@click.option("--data", "data_path_opt", default=None, type=click.Path(), help="Path to the training data. Any tabular format pandas can read. Quote paths containing spaces.")
 @click.option("--target", "target", default=None, help="Name of the column to predict. Defaults to the last column.")
 @click.option("--mode", type=click.Choice(MODES), default=None, help="fast = small zoo, no tuning. balanced = full zoo + tuning + stacking. competition = adds feature selection and extra models. [default: balanced]")
 @click.option("--time-budget", type=float, default=None, help="Wall-clock seconds for the whole run. [default: 1800]")
@@ -205,17 +206,26 @@ def cli(ctx: click.Context, quiet: bool, show_traceback: bool) -> None:
 @click.option("--no-report", is_flag=True, default=None, help="Skip the HTML report.")
 @click.option("--skip-validation", is_flag=True, default=None, help="Do not run the crosscheck suite before training.")
 @click.pass_context
-def train_command(ctx: click.Context, data_path: str, target: Optional[str], config_path: Optional[str], output_dir: Optional[str], **options: Any) -> None:
+def train_command(
+    ctx: click.Context,
+    data_path_arg: Optional[str],
+    data_path_opt: Optional[str],
+    target: Optional[str],
+    config_path: Optional[str],
+    output_dir: Optional[str],
+    **options: Any,
+) -> None:
     """Train a model zoo and write the best model plus a full report.
 
     \b
     Examples:
+      dive train sales.csv --target revenue
       dive train --data sales.csv --target revenue --mode fast --output ./out
-      dive train --data churn.parquet --target churned --time-budget 600
-      dive train --data data.csv --target y --config my_settings.yaml
+      dive train churn.parquet --target churned --time-budget 600
     """
     from dive.commands.train import run_train
 
+    data_path = data_path_arg or data_path_opt
     console = _console(ctx)
     allowed = {
         "data", "target", "mode", "time_budget", "output", "test_size",
@@ -230,6 +240,7 @@ def train_command(ctx: click.Context, data_path: str, target: Optional[str], con
 
     _echo_optional_dependency_notice(console)
     run_train(console=console, **_train_settings(settings))
+
 
 
 def _train_settings(settings: Dict[str, Any]) -> Dict[str, Any]:
@@ -283,7 +294,8 @@ def predict_command(ctx: click.Context, model_path: str, data_path: str, output_
 
 # ----------------------------------------------------------------------
 @cli.command("validate")
-@click.option("--data", "data_path", required=True, type=click.Path(), help="Path to the data file. Any tabular format pandas can read. Quote paths containing spaces.")
+@click.argument("data_path_arg", required=False, type=click.Path())
+@click.option("--data", "data_path_opt", default=None, type=click.Path(), help="Path to the data file. Any tabular format pandas can read.")
 @click.option("--target", "target", default=None, help="Column to predict. Without it, only structural checks run.")
 @click.option("--test-size", type=float, default=0.2, show_default=True, help="Holdout fraction, used to reproduce the same split train will use.")
 @click.option("--random-state", type=int, default=42, show_default=True, help="Seed for the reproducible split.")
@@ -293,7 +305,8 @@ def predict_command(ctx: click.Context, model_path: str, data_path: str, output_
 @click.pass_context
 def validate_command(
     ctx: click.Context,
-    data_path: str,
+    data_path_arg: Optional[str],
+    data_path_opt: Optional[str],
     target: Optional[str],
     test_size: float,
     random_state: int,
@@ -309,10 +322,14 @@ def validate_command(
 
     \b
     Examples:
-      dive validate --data data.csv --target diagnosis
+      dive validate data.csv --target diagnosis
       dive validate --data data.csv --target churned --strict --output checks.json
     """
     from dive.commands.validate import run_validate
+
+    data_path = data_path_arg or data_path_opt
+    if not data_path:
+        raise click.UsageError("Missing dataset path. Example: dive validate data.csv --target y")
 
     code = run_validate(
         console=_console(ctx),
@@ -325,6 +342,7 @@ def validate_command(
         strict=strict,
     )
     ctx.exit(code)
+
 
 
 # ----------------------------------------------------------------------
@@ -441,7 +459,8 @@ def deps_command(ctx: click.Context) -> None:
 
 # ----------------------------------------------------------------------
 @cli.command("doctor")
-@click.argument("data_path", type=click.Path(exists=True))
+@click.argument("data_path_arg", required=False, type=click.Path())
+@click.option("--data", "data_path_opt", default=None, type=click.Path(), help="Path to data file.")
 @click.option("--target", required=True, help="Column to predict.")
 @click.option("--group-column", default=None, help="Column identifying entity groups.")
 @click.option("--time-column", default=None, help="Column identifying timestamps.")
@@ -449,7 +468,8 @@ def deps_command(ctx: click.Context) -> None:
 @click.pass_context
 def doctor_command(
     ctx: click.Context,
-    data_path: str,
+    data_path_arg: Optional[str],
+    data_path_opt: Optional[str],
     target: str,
     group_column: Optional[str],
     time_column: Optional[str],
@@ -460,9 +480,13 @@ def doctor_command(
     \b
     Examples:
       dive doctor data.csv --target churn
-      dive doctor data.parquet --target label --group-column customer_id
+      dive doctor --data data.csv --target churn
     """
     from dive.commands.doctor import run_doctor
+
+    data_path = data_path_arg or data_path_opt
+    if not data_path:
+        raise click.UsageError("Missing dataset path. Example: dive doctor data.csv --target label")
 
     run_doctor(
         console=_console(ctx),
@@ -472,6 +496,7 @@ def doctor_command(
         time_column=time_column,
         output_path=output_path,
     )
+
 
 
 # ----------------------------------------------------------------------
