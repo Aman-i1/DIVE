@@ -39,10 +39,13 @@ from dive.failure_analysis import ModelFailureAnalyzer
 from dive.gate import DeploymentGate, GateVerdict
 from dive.info import DatasetInspector, DatasetInfoReport
 from dive.leakage import AdvancedLeakageDetector
+from dive.feature_availability import FeatureAvailabilityModel, FeatureMetadata
+from dive.feature_selection import FeaturePruner
 from dive.model_zoo import ModelZoo
 from dive.registry import ModelRegistry, PromotionGate
 from dive.resources import ResourceManager
 from dive.study import Study, create_study
+from dive.temporal_features import LeakageSafeTemporalEngine
 from dive.validation_engine import (
     ValidationIntelligenceEngine,
     ValidationPlan,
@@ -89,6 +92,10 @@ __all__ = [
     "ValidationIntelligenceEngine",
     "ValidationPlan",
     "ValidationRiskScore",
+    "FeatureAvailabilityModel",
+    "FeatureMetadata",
+    "LeakageSafeTemporalEngine",
+    "FeaturePruner",
     "DiveError",
     "ConfigError",
     "DataError",
