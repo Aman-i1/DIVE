@@ -31,16 +31,20 @@ class ProductionReadinessScore:
     schema_safety_score: float
     penalties: List[Dict[str, Any]] = field(default_factory=list)
 
+    @property
+    def sub_scores(self) -> Dict[str, float]:
+        return {
+            "data_quality": round(self.data_quality_score, 1),
+            "leakage_safety": round(self.leakage_safety_score, 1),
+            "validation_safety": round(self.validation_safety_score, 1),
+            "model_suitability": round(self.model_suitability_score, 1),
+            "schema_safety": round(self.schema_safety_score, 1),
+        }
+
     def to_dict(self) -> Dict[str, Any]:
         return {
             "overall_score": round(self.overall_score, 1),
-            "breakdown": {
-                "data_quality": round(self.data_quality_score, 1),
-                "leakage_safety": round(self.leakage_safety_score, 1),
-                "validation_safety": round(self.validation_safety_score, 1),
-                "model_suitability": round(self.model_suitability_score, 1),
-                "schema_safety": round(self.schema_safety_score, 1),
-            },
+            "breakdown": self.sub_scores,
             "penalties": self.penalties,
         }
 
