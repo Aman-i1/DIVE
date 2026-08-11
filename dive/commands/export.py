@@ -18,7 +18,7 @@ def run_export(
     format_type: str = "onnx",
 ) -> None:
     """Export trained model artifact into ONNX or polyglot format."""
-    console.banner("⚡ DIVE POLYGLOT MODEL EXPORTER", f"Exporting model artifact: {model_path}")
+    console.banner("DIVE POLYGLOT MODEL EXPORTER", f"Exporting model artifact: {model_path}")
 
     artifact = _load_artifact(model_path)
     if isinstance(artifact, DivePredictor):

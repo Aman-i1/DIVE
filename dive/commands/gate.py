@@ -21,7 +21,7 @@ def run_gate(
     strict: bool = False,
 ) -> int:
     """Run production deployment gate evaluation; returns exit code 0 (PASS) or 1 (FAIL)."""
-    console.banner("🚪 DIVE PRODUCTION DEPLOYMENT GATE", f"Evaluating model: {model_path}")
+    console.banner("DIVE PRODUCTION DEPLOYMENT GATE", f"Evaluating model: {model_path}")
 
     artifact = _load_artifact(model_path)
     if isinstance(artifact, DivePredictor):

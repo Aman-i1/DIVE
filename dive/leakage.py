@@ -67,11 +67,11 @@ class LeakageReport:
     def render(self) -> str:
         lines = ["LEAKAGE DETECTION REPORT", "========================"]
         if not self.warnings:
-            lines.append("✓ No leakage risks detected.")
+            lines.append("No leakage risks detected.")
             return "\n".join(lines)
 
         for w in self.warnings:
-            icon = "🔴" if w.risk_level == "HIGH" else "⚠"
+            icon = "[HIGH]" if w.risk_level == "HIGH" else "[WARN]"
             lines.append(f"{icon} {w.risk_level} RISK - Feature: '{w.feature}' [{w.category}]")
             lines.append(f"   Evidence: {w.evidence_metric} = {w.evidence_score:.4f}")
             lines.append(f"   Reason: {w.reason}")

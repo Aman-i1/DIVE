@@ -12,7 +12,7 @@ from dive.utils.logging import Console, Style
 
 def run_upgrade(console: Console, force: bool = False) -> None:
     """Pull latest changes from GitHub and upgrade dependencies."""
-    console.banner("⚡ DIVE AUTO-UPGRADE", "Updating DIVE engine & dependencies to latest GitHub main release")
+    console.banner("DIVE AUTO-UPGRADE", "Updating DIVE engine & dependencies to latest GitHub main release")
 
     console.kv("Current Version", f"v{__version__}")
     console.kv("Python Runtime", sys.version.split()[0])

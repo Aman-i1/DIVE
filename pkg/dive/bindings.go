@@ -74,7 +74,7 @@ func ComputePSI(refBins, currBins []float64) float64 {
 // PrintBanner outputs branded DIVE Go terminal header.
 func PrintBanner(title, subtitle string) {
 	fmt.Println()
-	fmt.Printf("⚡ \033[1;36m%s\033[0m\n", title)
+	fmt.Printf("\033[1;36m%s\033[0m\n", title)
 	if subtitle != "" {
 		fmt.Printf("   \033[0;37m%s\033[0m\n", subtitle)
 	}

@@ -199,7 +199,7 @@ class ValidationAdvisor:
 
 @dataclass
 class ModelAdvice:
-    """Output of ModelAdvisor.advise()."""
+    """Explainable model selection recommendations based on dataset shape and hardware limits."""
 
     recommended: List[str]
     acceptable: List[str]
@@ -218,10 +218,10 @@ class ModelAdvice:
 
     def render(self) -> str:
         lines = ["MODEL ADVISOR RECOMMENDATIONS", "============================="]
-        lines.append(f"⭐ Recommended  : {', '.join(self.recommended) if self.recommended else 'None'}")
-        lines.append(f"✓ Acceptable   : {', '.join(self.acceptable) if self.acceptable else 'None'}")
-        lines.append(f"⚠ Deprioritized: {', '.join(self.deprioritized) if self.deprioritized else 'None'}")
-        lines.append(f"✗ Rejected     : {', '.join(self.rejected) if self.rejected else 'None'}")
+        lines.append(f"Recommended  : {', '.join(self.recommended) if self.recommended else 'None'}")
+        lines.append(f"Acceptable   : {', '.join(self.acceptable) if self.acceptable else 'None'}")
+        lines.append(f"Deprioritized: {', '.join(self.deprioritized) if self.deprioritized else 'None'}")
+        lines.append(f"Rejected     : {', '.join(self.rejected) if self.rejected else 'None'}")
         lines.append("")
         lines.append("Decision Rationales:")
         for model, reason in self.decisions.items():

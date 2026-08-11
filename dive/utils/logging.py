@@ -19,17 +19,15 @@ from typing import Any, Dict, List, Optional, TextIO
 _SYMBOLS: Dict[str, tuple] = {
     "ok": ("✓", "[ok]"),          # check mark
     "fail": ("✗", "[fail]"),      # ballot X
-    "warn": ("⚠", "[warn]"),      # warning sign
-    "up": ("↑", "^"),             # up arrow
-    "arrow": ("→", "->"),         # right arrow
-    "star": ("★", "*"),           # star
-    "bullet": ("•", "-"),         # bullet
-    "rule": ("─", "-"),           # box drawing horizontal
-    "box_top": ("╔", "+"),
-    "box_bot": ("╚", "+"),
-    "box_vert": ("║", "|"),
-    "sparkle": ("✨", "*"),
-    "lightning": ("⚡", "!"),
+    "warn": ("!", "[warn]"),      # warning sign
+    "up": ("^", "^"),             # up arrow
+    "arrow": ("->", "->"),        # right arrow
+    "star": ("*", "*"),           # star
+    "bullet": ("-", "-"),         # bullet
+    "rule": ("-", "-"),           # box drawing horizontal
+    "box_top": ("+", "+"),
+    "box_bot": ("+", "+"),
+    "box_vert": ("|", "|"),
 }
 
 # npm-style spinner frames
@@ -207,8 +205,6 @@ class Console:
             "star": Style.GOLD,
             "bullet": Style.CYAN,
             "arrow": Style.VIOLET,
-            "sparkle": Style.GOLD,
-            "lightning": Style.CYAN,
         }.get(key)
         symbol = self.symbol(key)
         return self.paint(symbol, tint) if tint else symbol
@@ -348,7 +344,7 @@ class Console:
         if self.quiet:
             return
         self._write("")
-        self._write(f"  {self.status_symbol('lightning')} {self.paint(title, Style.CYAN, Style.BOLD)}")
+        self._write(f"  {self.paint(title, Style.CYAN, Style.BOLD)}")
         if subtitle:
             self._write(f"     {self.paint(subtitle, Style.MUTED)}")
         self._write("")

@@ -15,7 +15,7 @@ def run_info(
     output_path: Optional[str] = None,
 ) -> None:
     """Run targetless dataset inspection on data_path."""
-    console.banner("🔍 DIVE DATASET INSPECTOR", f"Profiling unknown dataset: {data_path}")
+    console.banner("DIVE DATASET INSPECTOR", f"Profiling unknown dataset: {data_path}")
 
     with console.spinner(f"Analyzing dataset structure for {data_path}..."):
         df = load_dataframe(data_path)

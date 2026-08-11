@@ -263,7 +263,7 @@ def run_interactive_predict(
     """Interactive prediction machine - prompt user column by column or parse dict input."""
     import json
     artifact = _load_artifact(model_path)
-    console.banner("🎯 DIVE INTERACTIVE PREDICTION MACHINE", f"Loaded prediction engine: {Path(model_path).name}")
+    console.banner("DIVE INTERACTIVE PREDICTION MACHINE", f"Loaded prediction engine: {Path(model_path).name}")
 
     if isinstance(artifact, DivePredictor):
         predictor = artifact

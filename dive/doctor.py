@@ -137,7 +137,7 @@ class DoctorReport:
 
         leak = self.sections.get("LEAKAGE", {})
         leak_high = leak.get("high_risk_features", [])
-        leak_icon = "🔴 HIGH RISK" if leak_high else ("⚠ WARNING" if leak.get("suspicious_features") else "✓ PASSED")
+        leak_icon = "[HIGH RISK]" if leak_high else ("[WARNING]" if leak.get("suspicious_features") else "[PASSED]")
         lines.append(f"LEAKAGE           Status: {leak_icon}")
 
         rec_val = val.get("recommended_strategy", "StratifiedKFold")
@@ -157,7 +157,7 @@ class DoctorReport:
             lines.append("IDENTIFIED RISKS:")
             for r in self.risks:
                 severity = r.get("severity", "MEDIUM")
-                icon = "🔴" if severity == "HIGH" else "⚠"
+                icon = "[HIGH]" if severity == "HIGH" else "[WARN]"
                 lines.append(f"  {icon} [{severity}] {r.get('name')}: {r.get('reason')}")
 
         if self.action_plan:

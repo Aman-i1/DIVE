@@ -65,13 +65,13 @@ class DriftReport:
             "==============================",
             f"Features Analyzed   : {self.n_features_analyzed}",
             f"Drifting Features   : {self.n_drifting_features}",
-            f"Retraining Needed   : {'🔴 YES' if self.retraining_recommended else '✓ NO'}",
+            f"Retraining Needed   : {'YES (REQUIRED)' if self.retraining_recommended else 'NO (STABLE)'}",
             f"Reason              : {self.recommendation_reason}",
             "",
             "Feature Drift Statuses:",
         ]
         for fr in self.feature_reports:
-            icon = "🔴" if fr.drift_status == "SIGNIFICANT_DRIFT" else ("⚠" if fr.drift_status == "MODERATE_DRIFT" else "✓")
+            icon = "[DRIFT]" if fr.drift_status == "SIGNIFICANT_DRIFT" else ("[WARN]" if fr.drift_status == "MODERATE_DRIFT" else "[PASS]")
             lines.append(f"  {icon} {fr.feature:<20}: PSI={fr.psi_score:.4f} [{fr.drift_status}]")
 
         if self.prediction_drift:

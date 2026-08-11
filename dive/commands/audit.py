@@ -19,7 +19,7 @@ def run_audit(
     output_path: Optional[str] = None,
 ) -> None:
     """Run compliance audit and generate signed ML Reliability Certificate."""
-    console.banner("🛡️ DIVE COMPLIANCE & ML RELIABILITY AUDITOR", f"Auditing dataset: {data_path}")
+    console.banner("DIVE COMPLIANCE AND RELIABILITY AUDITOR", f"Auditing dataset: {data_path}")
 
     with console.spinner(f"Running compliance & leakage audit on {data_path}..."):
         df = load_dataframe(data_path)

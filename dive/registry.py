@@ -43,16 +43,16 @@ class PromotionGateCheck:
             "=================================",
             f"Candidate Version : {self.candidate_version}",
             f"Target Stage      : {self.target_stage.upper()}",
-            f"Verdict           : {'✓ PROMOTION APPROVED' if self.approved else '🔴 PROMOTION REJECTED'}",
+            f"Verdict           : {'[APPROVED] PROMOTION APPROVED' if self.approved else '[REJECTED] PROMOTION REJECTED'}",
         ]
         if self.passed_checks:
             lines.append("Passed Checks:")
             for p in self.passed_checks:
-                lines.append(f"  ✓ {p}")
+                lines.append(f"  [PASS] {p}")
         if self.rejection_reasons:
             lines.append("Rejection Reasons:")
             for r in self.rejection_reasons:
-                lines.append(f"  🔴 {r}")
+                lines.append(f"  [FAIL] {r}")
         return "\n".join(lines)
 
 

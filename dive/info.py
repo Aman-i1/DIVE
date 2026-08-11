@@ -100,14 +100,14 @@ class DatasetInfoReport:
             f"OVERVIEW         Rows: {self.n_rows:,} | Cols: {self.n_cols} | RAM: {self.total_memory_mb:.2f} MB | Missing: {self.total_missing_pct:.1f}%",
             f"TYPES            Numeric: {self.numeric_count} | Categorical: {self.categorical_count} | Datetime: {self.datetime_count} | ID-like: {len(self.id_cols)}",
             "",
-            "🎯 INFERRED TARGET CANDIDATES:",
+            "INFERRED TARGET CANDIDATES:",
         ]
 
         if not self.candidate_targets:
             lines.append("  (No obvious target candidates detected. Specify --target manually.)")
         else:
             for i, ct in enumerate(self.candidate_targets[:3], 1):
-                star = "⭐" if i == 1 else " "
+                star = "[TOP]" if i == 1 else "     "
                 lines.append(
                     f"  {star} {i}. Candidate Column: '{ct.column_name}'"
                 )
@@ -133,7 +133,7 @@ class DatasetInfoReport:
             lines.append(f"  ... (+{len(self.column_profiles) - 15} more columns)")
 
         lines.append("")
-        lines.append("💡 RECOMMENDED NEXT STEPS:")
+        lines.append("RECOMMENDED NEXT STEPS:")
         if self.candidate_targets:
             top_target = self.candidate_targets[0].column_name
             lines.append(f"  1. Audit ML Readiness: dive doctor <data_file> --target {top_target}")

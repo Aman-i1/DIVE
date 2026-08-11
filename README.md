@@ -1,4 +1,4 @@
-# DIVE — Tabular ML Reliability + AutoML + MLOps Platform
+# DIVE: Tabular ML Reliability, AutoML, and MLOps Platform
 
 [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/Aman-i1/DIVE/blob/main/examples/colab_quickstart.ipynb)
 
@@ -96,7 +96,7 @@ preds = predictor.predict(new_df)
 
 ---
 
-## ⚡ CLI Commands Reference
+## CLI Commands Reference
 
 | `dive info` | Inspect unknown dataset, infer target candidates & problem types |
 | `dive doctor` | Full 17-point ML-readiness audit & Production Readiness Score |
@@ -120,7 +120,7 @@ preds = predictor.predict(new_df)
 
 ---
 
-## 🚀 Multi-Language Polyglot Ecosystem Architecture
+## Multi-Language Polyglot Ecosystem Architecture
 
 DIVE is engineered as a multi-language platform powered by:
 
@@ -133,9 +133,9 @@ DIVE is engineered as a multi-language platform powered by:
 
 ---
 
-## 🤔 Why DIVE Exists
+## Why DIVE Exists
 
-Traditional AutoML tools focus exclusively on benchmark accuracy — often training models on datasets contaminated by:
+Traditional AutoML tools focus exclusively on benchmark accuracy: often training models on datasets contaminated by:
 1. **Target Leakage**: Features that encode the outcome after the prediction event.
 2. **Unsafe Cross-Validation**: Random K-Fold splits on repeated entity data that leak customer/patient identities across folds.
 3. **Distribution Shift**: Silent performance collapse when production data shifts away from training distributions.
