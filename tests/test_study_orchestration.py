@@ -40,7 +40,7 @@ def test_study_flow(sample_df: pd.DataFrame, tmp_path: Path) -> None:
         data=sample_df,
         target="churn",
         mode="fast",
-        time_budget="10s",
+        time_budget="300s",
         output_dir=tmp_path,
     )
     study.fit()
