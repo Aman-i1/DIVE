@@ -100,7 +100,7 @@ class StudyOrchestrator:
         dive_engine = Dive(
             target=self.config.target,
             mode=self.config.mode,
-            time_budget_secs=self.config.time_budget_secs,
+            time_budget=self.config.time_budget_secs,
             n_splits=self.config.cv_splits,
             output_dir=output_dir,
             console=self.console,
