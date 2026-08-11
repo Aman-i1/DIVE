@@ -52,6 +52,10 @@ class LeakageReport:
     duplicate_metrics: Dict[str, Any] = field(default_factory=dict)
     point_in_time_status: Dict[str, str] = field(default_factory=dict)
 
+    @property
+    def has_critical_leakage(self) -> bool:
+        return self.has_high_risk
+
     def to_dict(self) -> Dict[str, Any]:
         return {
             "has_high_risk": self.has_high_risk,
@@ -81,10 +85,14 @@ class AdvancedLeakageDetector:
 
     def __init__(
         self,
+        target: Optional[str] = None,
+        time_column: Optional[str] = None,
         high_risk_threshold: float = 0.98,
         univariate_auc_threshold: float = 0.995,
         suspicious_threshold: float = 0.90,
     ) -> None:
+        self.target = target
+        self.time_column = time_column
         self.high_risk_threshold = high_risk_threshold
         self.univariate_auc_threshold = univariate_auc_threshold
         self.suspicious_threshold = suspicious_threshold
@@ -94,7 +102,22 @@ class AdvancedLeakageDetector:
             "approved", "rejected", "future", "post_", "after_", "final_"
         ]
 
+    def detect(
+        self,
+        df: pd.DataFrame,
+        target: Optional[str] = None,
+        problem_type: str = "classification",
+    ) -> LeakageReport:
+        """Run leakage detection directly on a DataFrame."""
+        t = target or self.target
+        if not t or t not in df.columns:
+            return LeakageReport(has_high_risk=False, warnings=[])
+        X = df.drop(columns=[t])
+        y = df[t]
+        return self.audit(X, y, problem_type=problem_type)
+
     def audit(
+
         self,
         X: pd.DataFrame,
         y: pd.Series,
