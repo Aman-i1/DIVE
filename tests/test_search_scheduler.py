@@ -9,10 +9,11 @@ from dive.search_scheduler import ASHASearchScheduler, Trial
 
 def test_asha_search_scheduler_rungs() -> None:
     scheduler = ASHASearchScheduler(min_fidelity=0.1, max_fidelity=1.0, reduction_factor=3)
-    assert len(scheduler.rungs) == 3
+    assert len(scheduler.rungs) == 4
     assert scheduler.rungs[0].fidelity == 0.1
     assert scheduler.rungs[1].fidelity == 0.3
-    assert scheduler.rungs[2].fidelity == 1.0
+    assert scheduler.rungs[2].fidelity == 0.9
+    assert scheduler.rungs[3].fidelity == 1.0
 
 
 def test_asha_trial_promotion_and_pruning() -> None:
