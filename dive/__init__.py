@@ -44,7 +44,7 @@ from dive.feature_availability import FeatureAvailabilityModel, FeatureMetadata
 from dive.feature_selection import FeaturePruner
 from dive.model_zoo import ModelZoo
 from dive.registry import ModelRegistry, PromotionGate
-from dive.resources import ResourceManager
+from dive.search_scheduler import ASHASearchScheduler, Rung, Trial
 from dive.study import Study, create_study
 from dive.temporal_features import LeakageSafeTemporalEngine
 from dive.validation_engine import (
@@ -99,6 +99,9 @@ __all__ = [
     "FeaturePruner",
     "ModelCapability",
     "CapabilityRegistry",
+    "ASHASearchScheduler",
+    "Trial",
+    "Rung",
     "DiveError",
     "ConfigError",
     "DataError",
