@@ -39,6 +39,7 @@ from dive.failure_analysis import ModelFailureAnalyzer
 from dive.gate import DeploymentGate, GateVerdict
 from dive.info import DatasetInspector, DatasetInfoReport
 from dive.leakage import AdvancedLeakageDetector
+from dive.capability_registry import CapabilityRegistry, ModelCapability
 from dive.feature_availability import FeatureAvailabilityModel, FeatureMetadata
 from dive.feature_selection import FeaturePruner
 from dive.model_zoo import ModelZoo
@@ -96,6 +97,8 @@ __all__ = [
     "FeatureMetadata",
     "LeakageSafeTemporalEngine",
     "FeaturePruner",
+    "ModelCapability",
+    "CapabilityRegistry",
     "DiveError",
     "ConfigError",
     "DataError",
