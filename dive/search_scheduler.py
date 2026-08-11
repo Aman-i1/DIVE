@@ -62,14 +62,16 @@ class ASHASearchScheduler:
         self.reduction_factor = reduction_factor
         self.logger = logger or DecisionLogger()
 
-        # Build rungs: e.g. rung 0 (0.11), rung 1 (0.33), rung 2 (1.0)
+        # Build rungs: e.g. rung 0 (0.1), rung 1 (0.3), rung 2 (1.0)
         self.rungs: List[Rung] = []
         fidelity = min_fidelity
         rung_idx = 0
-        while fidelity <= max_fidelity * 1.001:
-            self.rungs.append(Rung(rung_index=rung_idx, fidelity=min(max_fidelity, round(fidelity, 2))))
+        while fidelity < max_fidelity:
+            self.rungs.append(Rung(rung_index=rung_idx, fidelity=round(fidelity, 2)))
             fidelity *= reduction_factor
             rung_idx += 1
+        if not self.rungs or self.rungs[-1].fidelity < max_fidelity:
+            self.rungs.append(Rung(rung_index=len(self.rungs), fidelity=round(max_fidelity, 2)))
 
     def submit_trial(self, trial_id: str, model_name: str, hyperparameters: Dict[str, Any]) -> Trial:
         """Submit a new trial at initial minimum fidelity."""
