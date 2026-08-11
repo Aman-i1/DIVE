@@ -101,8 +101,7 @@ class StudyOrchestrator:
             target=self.config.target,
             mode=self.config.mode,
             time_budget=self.config.time_budget_secs,
-            n_splits=self.config.cv_splits,
-            output_dir=output_dir,
+            cv_folds=self.config.cv_splits,
             console=self.console,
         )
         dive_engine.fit(df)
