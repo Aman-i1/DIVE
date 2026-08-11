@@ -118,7 +118,7 @@ class DataIntelligence:
         id_like = self._detect_id_cols(X, n, exclude=datetime_cols)
         group_candidates = [
             c for c in X.select_dtypes(include=["object", "int64"]).columns
-            if c not in id_like and 1 < X[c].nunique() < (0.5 * n)
+            if c not in id_like and 1 < X[c].nunique() <= (0.8 * n)
         ]
         is_grouped = len(group_candidates) > 0
         is_temporal = len(datetime_cols) > 0
