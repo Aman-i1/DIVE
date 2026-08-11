@@ -440,6 +440,183 @@ def deps_command(ctx: click.Context) -> None:
 
 
 # ----------------------------------------------------------------------
+@cli.command("doctor")
+@click.argument("data_path", type=click.Path(exists=True))
+@click.option("--target", required=True, help="Column to predict.")
+@click.option("--group-column", default=None, help="Column identifying entity groups.")
+@click.option("--time-column", default=None, help="Column identifying timestamps.")
+@click.option("--output", "output_path", default=None, type=click.Path(), help="Write diagnostic report as JSON.")
+@click.pass_context
+def doctor_command(
+    ctx: click.Context,
+    data_path: str,
+    target: str,
+    group_column: Optional[str],
+    time_column: Optional[str],
+    output_path: Optional[str],
+) -> None:
+    """Run full ML Doctor readiness audit on a dataset.
+
+    \b
+    Examples:
+      dive doctor data.csv --target churn
+      dive doctor data.parquet --target label --group-column customer_id
+    """
+    from dive.commands.doctor import run_doctor
+
+    run_doctor(
+        console=_console(ctx),
+        data_path=data_path,
+        target=target,
+        group_column=group_column,
+        time_column=time_column,
+        output_path=output_path,
+    )
+
+
+# ----------------------------------------------------------------------
+@cli.group("experiments")
+def experiments_group() -> None:
+    """Manage and compare tracked training experiments."""
+    pass
+
+
+@experiments_group.command("list")
+@click.pass_context
+def experiments_list_cmd(ctx: click.Context) -> None:
+    from dive.commands.experiments import run_experiments_list
+
+    run_experiments_list(console=_console(ctx))
+
+
+@experiments_group.command("show")
+@click.argument("experiment_id")
+@click.pass_context
+def experiments_show_cmd(ctx: click.Context, experiment_id: str) -> None:
+    from dive.commands.experiments import run_experiments_show
+
+    run_experiments_show(console=_console(ctx), experiment_id=experiment_id)
+
+
+@experiments_group.command("compare")
+@click.argument("experiment_ids", nargs=-1, required=True)
+@click.pass_context
+def experiments_compare_cmd(ctx: click.Context, experiment_ids: Sequence[str]) -> None:
+    from dive.commands.experiments import run_experiments_compare
+
+    run_experiments_compare(console=_console(ctx), experiment_ids=list(experiment_ids))
+
+
+# ----------------------------------------------------------------------
+@cli.group("models")
+def models_group() -> None:
+    """Local model registry management and promotion gates."""
+    pass
+
+
+@models_group.command("list")
+@click.option("--name", default=None, help="Filter by model name.")
+@click.pass_context
+def models_list_cmd(ctx: click.Context, name: Optional[str]) -> None:
+    from dive.commands.models import run_models_list
+
+    run_models_list(console=_console(ctx), model_name=name)
+
+
+@models_group.command("register")
+@click.argument("model_path", type=click.Path(exists=True))
+@click.option("--name", required=True, help="Model name.")
+@click.option("--stage", default="candidate", help="Initial stage (candidate, staging, production).")
+@click.pass_context
+def models_register_cmd(ctx: click.Context, model_path: str, name: str, stage: str) -> None:
+    from dive.commands.models import run_models_register
+
+    run_models_register(console=_console(ctx), model_path=model_path, model_name=name, stage=stage)
+
+
+@models_group.command("promote")
+@click.argument("name")
+@click.argument("version")
+@click.argument("stage")
+@click.pass_context
+def models_promote_cmd(ctx: click.Context, name: str, version: str, stage: str) -> None:
+    from dive.commands.models import run_models_promote
+
+    run_models_promote(console=_console(ctx), model_name=name, version=version, stage=stage)
+
+
+# ----------------------------------------------------------------------
+@cli.command("serve")
+@click.option("--model", "model_path", required=True, type=click.Path(exists=True), help="Path to pickled model artifact.")
+@click.option("--host", default="127.0.0.1", show_default=True, help="Server host IP.")
+@click.option("--port", type=int, default=8000, show_default=True, help="Server port.")
+@click.pass_context
+def serve_command(ctx: click.Context, model_path: str, host: str, port: int) -> None:
+    """Serve a trained model as a REST API.
+
+    \b
+    Examples:
+      dive serve --model ./out/model.pkl
+      dive serve --model ./out/model.pkl --port 9000
+    """
+    from dive.commands.serve import run_serve
+
+    run_serve(console=_console(ctx), model_path=model_path, host=host, port=port)
+
+
+# ----------------------------------------------------------------------
+@cli.command("drift")
+@click.option("--ref", "ref_path", required=True, type=click.Path(exists=True), help="Reference baseline dataset.")
+@click.option("--curr", "curr_path", required=True, type=click.Path(exists=True), help="Current production dataset.")
+@click.option("--output", "output_path", default=None, type=click.Path(), help="Write drift report JSON.")
+@click.pass_context
+def drift_command(ctx: click.Context, ref_path: str, curr_path: str, output_path: Optional[str]) -> None:
+    """Detect production vs training data drift.
+
+    \b
+    Examples:
+      dive drift --ref train.csv --curr prod_week1.csv
+    """
+    from dive.commands.drift import run_drift
+
+    run_drift(console=_console(ctx), reference_path=ref_path, current_path=curr_path, output_path=output_path)
+
+
+# ----------------------------------------------------------------------
+@cli.command("reproduce")
+@click.argument("experiment_id")
+@click.option("--output", "output_dir", default="reproduce_bundle", help="Directory to write bundle into.")
+@click.pass_context
+def reproduce_command(ctx: click.Context, experiment_id: str, output_dir: str) -> None:
+    """Export reproducibility manifest bundle for an experiment.
+
+    \b
+    Examples:
+      dive reproduce EXP-000001
+    """
+    from dive.commands.reproduce import run_reproduce
+
+    run_reproduce(console=_console(ctx), experiment_id=experiment_id, output_dir=output_dir)
+
+
+# ----------------------------------------------------------------------
+@cli.command("benchmark")
+@click.option("--mode", type=click.Choice(MODES), default="fast", show_default=True, help="AutoML mode to benchmark.")
+@click.pass_context
+def benchmark_command(ctx: click.Context, mode: str) -> None:
+    """Run DIVE scalability benchmark suite.
+
+    \b
+    Examples:
+      dive benchmark --mode fast
+    """
+    from dive.commands.benchmark import run_benchmark
+
+    run_benchmark(console=_console(ctx), mode=mode)
+
+
+
+# ----------------------------------------------------------------------
 def main(argv: Optional[list] = None) -> int:
     """Entry point installed as the ``dive`` console script."""
     args = list(sys.argv[1:] if argv is None else argv)

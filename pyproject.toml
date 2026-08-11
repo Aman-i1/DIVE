@@ -50,6 +50,16 @@ explain = [
     "category_encoders>=2.6",
     "shap>=0.42",
 ]
+# Model serving API.
+serving = [
+    "fastapi>=0.95",
+    "uvicorn>=0.20",
+]
+ops = [
+    "psutil>=5.9",
+    "scipy>=1.9",
+    "polars>=0.18",
+]
 full = [
     "xgboost>=1.7",
     "lightgbm>=3.3",
@@ -57,12 +67,17 @@ full = [
     "optuna>=3.0",
     "category_encoders>=2.6",
     "shap>=0.42",
+    "fastapi>=0.95",
+    "uvicorn>=0.20",
+    "psutil>=5.9",
+    "scipy>=1.9",
 ]
 dev = [
     "pytest>=7.0",
     "pytest-cov>=4.0",
     "pyarrow>=10.0",
 ]
+
 
 [project.scripts]
 dive = "dive.cli:main"

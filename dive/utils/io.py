@@ -586,3 +586,22 @@ def unique_path(path: Any) -> Path:
         if not candidate.exists():
             return candidate
     return resolved
+
+
+def load_json(path: Any) -> Dict[str, Any]:
+    """Read JSON from file path."""
+    import json
+    resolved = resolve_path(path, must_exist=True, kind="JSON file")
+    text = read_text(resolved)
+    return json.loads(text)
+
+
+def save_json(path: Any, data: Any, indent: int = 2) -> Path:
+    """Write data as formatted JSON to file path."""
+    import json
+    resolved = resolve_path(path)
+    ensure_dir(resolved.parent)
+    text = json.dumps(data, indent=indent)
+    write_text(resolved, text)
+    return resolved
+

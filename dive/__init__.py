@@ -15,8 +15,12 @@ from __future__ import annotations
 
 __version__ = "0.1.0"
 
+from dive.advisor import ModelAdvisor, ValidationAdvisor
+from dive.calibration import ProbabilityCalibrator
 from dive.core import Dive, Evaluator, build_preprocessor, quick_dive
 from dive.data_intelligence import DataIntelligence
+from dive.doctor import DiveDoctor, ProductionReadinessScore
+from dive.drift import DriftDetector
 from dive.exceptions import (
     DiveError,
     ConfigError,
@@ -27,14 +31,33 @@ from dive.exceptions import (
     TrainingError,
     ValidationError,
 )
+from dive.experiments import ExperimentTracker
+from dive.explainability import ExplainabilityEngine
+from dive.failure_analysis import ModelFailureAnalyzer
 from dive.feature_engineering import FeatureEngineer
+from dive.leakage import AdvancedLeakageDetector
 from dive.model_zoo import ModelZoo
 from dive.predictor import DivePredictor, load_predictor
+from dive.registry import ModelRegistry, PromotionGate
+from dive.resources import ResourceManager
 
 __all__ = [
     "__version__",
     "Dive",
     "DataIntelligence",
+    "DiveDoctor",
+    "ProductionReadinessScore",
+    "ValidationAdvisor",
+    "ModelAdvisor",
+    "AdvancedLeakageDetector",
+    "ResourceManager",
+    "ModelFailureAnalyzer",
+    "ProbabilityCalibrator",
+    "ExplainabilityEngine",
+    "ExperimentTracker",
+    "ModelRegistry",
+    "PromotionGate",
+    "DriftDetector",
     "DivePredictor",
     "Evaluator",
     "FeatureEngineer",
@@ -51,3 +74,4 @@ __all__ = [
     "TrainingError",
     "ValidationError",
 ]
+
