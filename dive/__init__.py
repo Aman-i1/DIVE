@@ -34,7 +34,7 @@ from dive.exceptions import (
 from dive.experiments import ExperimentTracker
 from dive.explainability import ExplainabilityEngine
 from dive.failure_analysis import ModelFailureAnalyzer
-from dive.feature_engineering import FeatureEngineer
+from dive.info import DatasetInspector, DatasetInfoReport
 from dive.leakage import AdvancedLeakageDetector
 from dive.model_zoo import ModelZoo
 from dive.predictor import DivePredictor, load_predictor
@@ -45,6 +45,8 @@ __all__ = [
     "__version__",
     "Dive",
     "DataIntelligence",
+    "DatasetInspector",
+    "DatasetInfoReport",
     "DiveDoctor",
     "ProductionReadinessScore",
     "ValidationAdvisor",
@@ -74,4 +76,5 @@ __all__ = [
     "TrainingError",
     "ValidationError",
 ]
+
 

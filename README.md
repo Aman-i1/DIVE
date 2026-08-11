@@ -100,6 +100,7 @@ preds = predictor.predict(new_df)
 
 | Command | Purpose |
 |---|---|
+| `dive info` | Inspect unknown dataset, infer target candidates & problem types |
 | `dive doctor` | Full 17-point ML-readiness audit & Production Readiness Score |
 | `dive train` | Resource-aware AutoML training, tuning, stacking & reporting |
 | `dive predict` | Score new rows with schema validation & fitted preprocessing |
@@ -112,6 +113,7 @@ preds = predictor.predict(new_df)
 | `dive benchmark` | Run DIVE dataset scaling & performance benchmark suite |
 | `dive upgrade` | Auto-upgrade DIVE to latest GitHub release & update dependencies |
 | `dive explain` | Pipeline account, local feature contributions & counterfactuals |
+
 
 | `dive report` | Render standalone HTML diagnostic report |
 | `dive docs` | Open or serve local HTML documentation |

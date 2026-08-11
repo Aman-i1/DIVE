@@ -631,6 +631,35 @@ def upgrade_command(ctx: click.Context, force: bool) -> None:
     run_upgrade(console=_console(ctx), force=force)
 
 
+# ----------------------------------------------------------------------
+@cli.command("info")
+@click.argument("data_path_arg", required=False, type=click.Path())
+@click.option("--data", "data_path_opt", default=None, type=click.Path(), help="Path to data file.")
+@click.option("--output", "output_path", default=None, type=click.Path(), help="Write info report JSON.")
+@click.pass_context
+def info_command(
+    ctx: click.Context,
+    data_path_arg: Optional[str],
+    data_path_opt: Optional[str],
+    output_path: Optional[str],
+) -> None:
+    """Inspect an unknown dataset, infer target candidates & problem type.
+
+    \b
+    Examples:
+      dive info data.csv
+      dive info --data sales.csv
+    """
+    from dive.commands.info import run_info
+
+    path = data_path_arg or data_path_opt
+    if not path:
+        raise click.UsageError("Missing argument 'DATA_PATH' or '--data'. Example: dive info data.csv")
+
+    run_info(console=_console(ctx), data_path=path, output_path=output_path)
+
+
+
 
 
 # ----------------------------------------------------------------------

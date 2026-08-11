@@ -62,3 +62,11 @@ def test_cli_upgrade(cli_runner: CliRunner) -> None:
     assert res.exit_code == 0
     assert "DIVE AUTO-UPGRADE" in res.output
 
+
+def test_cli_info(cli_runner: CliRunner, sample_csv: str) -> None:
+    res = cli_runner.invoke(cli, ["info", sample_csv])
+    assert res.exit_code == 0
+    assert "DIVE DATASET INSPECTION" in res.output
+    assert "churn" in res.output
+
+
