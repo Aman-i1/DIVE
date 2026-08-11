@@ -302,6 +302,13 @@ class Dive:
         self._fit_seconds: Optional[float] = None
         self._raw_training_frame: Optional[pd.DataFrame] = None
 
+    @property
+    def best_score_(self) -> Optional[float]:
+        if self.results_df_ is not None and not self.results_df_.empty and self._primary_score_col:
+            val = self.results_df_.iloc[0].get(self._primary_score_col)
+            return float(val) if pd.notna(val) else None
+        return None
+
     # -- timing ---------------------------------------------------------
     def _elapsed(self) -> float:
         return time.time() - self._start_time if self._start_time else 0.0
