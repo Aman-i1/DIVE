@@ -615,6 +615,23 @@ def benchmark_command(ctx: click.Context, mode: str) -> None:
     run_benchmark(console=_console(ctx), mode=mode)
 
 
+# ----------------------------------------------------------------------
+@cli.command("upgrade")
+@click.option("--force", is_flag=True, help="Force reinstall/upgrade even if up to date.")
+@click.pass_context
+def upgrade_command(ctx: click.Context, force: bool) -> None:
+    """Upgrade DIVE to the latest GitHub release & update python dependencies.
+
+    \b
+    Examples:
+      dive upgrade
+    """
+    from dive.commands.upgrade import run_upgrade
+
+    run_upgrade(console=_console(ctx), force=force)
+
+
+
 
 # ----------------------------------------------------------------------
 def main(argv: Optional[list] = None) -> int:

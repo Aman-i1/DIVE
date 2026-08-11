@@ -110,7 +110,9 @@ preds = predictor.predict(new_df)
 | `dive drift` | Detect PSI, KS, and JS divergence data & prediction drift |
 | `dive reproduce` | Export reproducibility manifest bundles (`experiment.json`, `environment.json`) |
 | `dive benchmark` | Run DIVE dataset scaling & performance benchmark suite |
+| `dive upgrade` | Auto-upgrade DIVE to latest GitHub release & update dependencies |
 | `dive explain` | Pipeline account, local feature contributions & counterfactuals |
+
 | `dive report` | Render standalone HTML diagnostic report |
 | `dive docs` | Open or serve local HTML documentation |
 | `dive deps` | Show optional dependency status |

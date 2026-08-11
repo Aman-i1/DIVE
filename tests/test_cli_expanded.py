@@ -55,3 +55,10 @@ def test_cli_benchmark(cli_runner: CliRunner) -> None:
     res = cli_runner.invoke(cli, ["benchmark", "--mode", "fast"])
     assert res.exit_code == 0
     assert "DIVE Scalability & Performance Benchmarking" in res.output
+
+
+def test_cli_upgrade(cli_runner: CliRunner) -> None:
+    res = cli_runner.invoke(cli, ["upgrade"])
+    assert res.exit_code == 0
+    assert "DIVE AUTO-UPGRADE" in res.output
+
