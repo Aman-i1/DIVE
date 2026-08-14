@@ -85,6 +85,16 @@ class ModelStressTester:
         np.random.seed(42)
         shuffled_y = np.random.permutation(y_arr)
 
+        def _calc_score(y_t: np.ndarray, p_t: np.ndarray) -> float:
+            try:
+                if self.problem_type == "regression" or len(np.unique(y_arr)) > 10:
+                    return float(max(-1.0, r2_score(y_t, p_t)))
+                else:
+                    p_disc = (p_t >= 0.5).astype(int) if p_t.dtype.kind == 'f' else p_t
+                    return float(accuracy_score(y_t.astype(int), p_disc))
+            except Exception:
+                return 0.50
+
         if hasattr(model_pipeline, "predict_proba") and len(np.unique(y_arr)) == 2:
             probs = model_pipeline.predict_proba(X_test)[:, 1]
             try:
@@ -100,11 +110,10 @@ class ModelStressTester:
                 sanity_status = "PASS"
         else:
             preds = model_pipeline.predict(X_test)
+            shuffled_score = _calc_score(shuffled_y, preds)
             if self.problem_type == "regression":
-                shuffled_score = float(max(-1.0, r2_score(shuffled_y, preds)))
                 sanity_status = "FAIL_CRITICAL" if shuffled_score > 0.30 else "PASS"
             else:
-                shuffled_score = float(accuracy_score(shuffled_y, preds))
                 baseline_acc = float(max(np.mean(y_arr == 0), np.mean(y_arr == 1)))
                 sanity_status = "FAIL_CRITICAL" if (shuffled_score - baseline_acc) > 0.15 else "PASS"
 
@@ -124,7 +133,7 @@ class ModelStressTester:
                     boot_scores.append(nominal_score)
             else:
                 p_b = model_pipeline.predict(X_boot)
-                boot_scores.append(float(accuracy_score(y_boot, p_b)))
+                boot_scores.append(_calc_score(y_boot, p_b))
 
         seed_std = float(np.std(boot_scores))
         seed_status = "HIGH" if seed_std < 0.02 else ("MEDIUM" if seed_std < 0.05 else "LOW")

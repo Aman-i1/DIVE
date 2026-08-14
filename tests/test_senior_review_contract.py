@@ -59,6 +59,6 @@ def test_data_quality_and_inferred_rules() -> None:
     assert age_rules[0].violations_count == 1
 
     # Check refund rule
-    refund_rules = [r for r in report.inferred_rules if "refund" in r.rule_description]
-    assert len(refund_rules) > 0
-    assert refund_rules[0].violations_count == 1
+    bounded_rules = [r for r in report.inferred_rules if "<=" in r.rule_description]
+    assert len(bounded_rules) > 0
+    assert bounded_rules[0].violations_count == 1

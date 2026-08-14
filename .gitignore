@@ -21,6 +21,8 @@ htmlcov/
 # Training side-effects and run output
 catboost_info/
 dive_output/
+dive_autopilot_out/
+.dive_store/
 *.pkl
 predictions.csv
 

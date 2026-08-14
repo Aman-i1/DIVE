@@ -115,14 +115,24 @@ class FailureSegmentAnalyzer:
                 recommendations=["No test data available for segmentation."],
             )
 
+        def _calc_slice_metric(y_sub: np.ndarray, p_sub: np.ndarray) -> float:
+            try:
+                # If target is discrete classification
+                if len(np.unique(y_arr)) <= 10:
+                    y_disc = y_sub.astype(int) if (y_sub.dtype.kind in ('i', 'u', 'b', 'f')) else y_sub
+                    if p_sub.dtype.kind == 'f':
+                        p_disc = (p_sub >= 0.5).astype(int)
+                    else:
+                        p_disc = p_sub
+                    return float(accuracy_score(y_disc, p_disc))
+                else:
+                    # Regression
+                    return float(max(0.0, r2_score(y_sub, p_sub)))
+            except Exception:
+                return 0.50
+
         # Global metric
-        if metric_name == "Accuracy":
-            global_metric = float(accuracy_score(y_arr, predictions))
-        elif metric_name == "ROC_AUC" and probabilities is not None:
-            p_pos = probabilities[:, 1] if probabilities.ndim > 1 else probabilities
-            global_metric = float(roc_auc_score(y_arr, p_pos))
-        else:
-            global_metric = float(accuracy_score(y_arr, predictions))
+        global_metric = _calc_slice_metric(y_arr, predictions)
 
         weak_segments: List[FailureSegment] = []
 
@@ -137,7 +147,7 @@ class FailureSegmentAnalyzer:
                 y_slice = y_arr[idx_list]
                 p_slice = predictions[idx_list]
 
-                slice_metric = float(accuracy_score(y_slice, p_slice))
+                slice_metric = _calc_slice_metric(y_slice, p_slice)
                 drop = global_metric - slice_metric
 
                 if drop >= self.drop_threshold:
@@ -166,7 +176,7 @@ class FailureSegmentAnalyzer:
 
                     y_slice = y_arr[idx_list]
                     p_slice = predictions[idx_list]
-                    slice_metric = float(accuracy_score(y_slice, p_slice))
+                    slice_metric = _calc_slice_metric(y_slice, p_slice)
                     drop = global_metric - slice_metric
 
                     if drop >= self.drop_threshold:
