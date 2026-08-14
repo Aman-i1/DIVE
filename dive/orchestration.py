@@ -11,6 +11,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Union
 
+import numpy as np
 import pandas as pd
 
 from dive.decisions import DecisionLogger
@@ -88,7 +89,16 @@ class StudyOrchestrator:
             n_splits=self.config.cv_splits,
         )
 
-        # 4. Train Model Pipeline via Dive core engine
+        # 4. Meta-Learning Dataset Fingerprinting & Warm-Start Priors
+        from dive.meta_learning import MetaLearningEngine
+
+        meta_engine = MetaLearningEngine(logger=self.logger)
+        X_df = df.drop(columns=[self.config.target]) if self.config.target in df.columns else df
+        y_sr = df[self.config.target] if self.config.target in df.columns else pd.Series(np.zeros(len(df)))
+        fingerprint = meta_engine.compute_fingerprint(X_df, y_sr, problem_type=doc_report.problem_type)
+        meta_priors = meta_engine.warm_start_recommendations(fingerprint, problem_type=doc_report.problem_type)
+
+        # 5. Train Model Pipeline via Dive core engine
         from dive.core import Dive
 
         dive_engine = Dive(

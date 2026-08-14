@@ -42,11 +42,28 @@ from dive.leakage import AdvancedLeakageDetector
 from dive.capability_registry import CapabilityRegistry, ModelCapability
 from dive.feature_availability import FeatureAvailabilityModel, FeatureMetadata
 from dive.feature_selection import FeaturePruner
+from dive.meta_learning import (
+    DatasetFingerprint,
+    MetaLearningEngine,
+    MetaWarmStartPriors,
+)
 from dive.model_zoo import ModelZoo
+from dive.ood_detector import OODDetector, OODResult
 from dive.registry import ModelRegistry, PromotionGate
 from dive.search_scheduler import ASHASearchScheduler, Rung, Trial
 from dive.study import Study, create_study
 from dive.temporal_features import LeakageSafeTemporalEngine
+from dive.trust import (
+    PerturbationRobustnessResult,
+    TrustEngine,
+    TrustReport,
+)
+from dive.uncertainty import (
+    ConformalIntervalResult,
+    ConformalPredictor,
+    ConformalSetResult,
+    UncertaintyDecomposition,
+)
 from dive.validation_engine import (
     ValidationIntelligenceEngine,
     ValidationPlan,
@@ -102,6 +119,18 @@ __all__ = [
     "ASHASearchScheduler",
     "Trial",
     "Rung",
+    "DatasetFingerprint",
+    "MetaLearningEngine",
+    "MetaWarmStartPriors",
+    "ConformalPredictor",
+    "ConformalIntervalResult",
+    "ConformalSetResult",
+    "UncertaintyDecomposition",
+    "OODDetector",
+    "OODResult",
+    "TrustEngine",
+    "TrustReport",
+    "PerturbationRobustnessResult",
     "DiveError",
     "ConfigError",
     "DataError",
