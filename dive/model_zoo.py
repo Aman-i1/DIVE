@@ -289,12 +289,49 @@ class ModelZoo:
             models["RidgeClassifier"] = _RidgeClassifierWrapper(
                 alpha=1.0, class_weight=class_weight
             )
-            models["RandomForest"] = RandomForestClassifier(
-                n_estimators=300, random_state=rs, class_weight=class_weight, n_jobs=-1
-            )
-            models["ExtraTrees"] = ExtraTreesClassifier(
-                n_estimators=300, random_state=rs, class_weight=class_weight, n_jobs=-1
-            )
+
+            # High-performance gradient boosters
+            lightgbm = load_optional("lightgbm")
+            if lightgbm is not None and self.mode in ("balanced", "competition"):
+                models["LightGBM"] = lightgbm.LGBMClassifier(
+                    n_estimators=500, learning_rate=0.05, num_leaves=63,
+                    subsample=0.8, colsample_bytree=0.8,
+                    class_weight=class_weight, random_state=rs,
+                    n_jobs=-1, verbosity=-1,
+                )
+
+            if is_available("xgboost") and self.mode in ("balanced", "competition"):
+                n_classes = int(self.profile.get("n_classes") or 2)
+                xgb_clf_kwargs: Dict[str, Any] = dict(
+                    early_stopping_rounds=50,
+                    n_estimators=500,
+                    learning_rate=0.05,
+                    max_depth=6,
+                    subsample=0.8,
+                    colsample_bytree=0.8,
+                    random_state=rs,
+                    n_jobs=-1,
+                    device=gpu,
+                    verbosity=0,
+                )
+                if n_classes > 2:
+                    xgb_clf_kwargs["eval_metric"] = "mlogloss"
+                else:
+                    xgb_clf_kwargs["eval_metric"] = "logloss"
+                    xgb_clf_kwargs["scale_pos_weight"] = (
+                        self.profile.get("imbalance_ratio") or 1.0
+                    )
+                models["XGBoost"] = _make_xgb_classifier(**xgb_clf_kwargs)
+
+            catboost = load_optional("catboost")
+            if catboost is not None and self.mode in ("balanced", "competition"):
+                models["CatBoost"] = catboost.CatBoostClassifier(
+                    iterations=500, learning_rate=0.05, depth=6,
+                    eval_metric="Accuracy", random_seed=rs, verbose=0,
+                    auto_class_weights="Balanced" if class_weight else None,
+                    task_type="GPU" if detect_gpu() else "CPU",
+                )
+
             hist_kwargs: Dict[str, Any] = {
                 "max_iter": 500,
                 "random_state": rs,
@@ -306,6 +343,16 @@ class ModelZoo:
             ):
                 hist_kwargs["class_weight"] = class_weight
             models["HistGBM"] = HistGradientBoostingClassifier(**hist_kwargs)
+
+            # Forest ensembles
+            rf_trees = 150 if n > 50_000 else 300
+            models["RandomForest"] = RandomForestClassifier(
+                n_estimators=rf_trees, random_state=rs, class_weight=class_weight, n_jobs=-1
+            )
+            models["ExtraTrees"] = ExtraTreesClassifier(
+                n_estimators=rf_trees, random_state=rs, class_weight=class_weight, n_jobs=-1
+            )
+
             models["MLP"] = MLPClassifier(
                 hidden_layer_sizes=(256, 128), max_iter=500,
                 random_state=rs, early_stopping=True,
@@ -314,66 +361,60 @@ class ModelZoo:
             if self.mode in ("balanced", "competition"):
                 if n <= _KNN_CAPACITY_CAP:
                     models["KNN"] = KNeighborsClassifier(n_neighbors=7, n_jobs=-1)
-                if is_available("xgboost"):
-                    n_classes = int(self.profile.get("n_classes") or 2)
-                    xgb_clf_kwargs: Dict[str, Any] = dict(
-                        early_stopping_rounds=50,
-                        n_estimators=500,
-                        learning_rate=0.05,
-                        max_depth=6,
-                        subsample=0.8,
-                        colsample_bytree=0.8,
-                        random_state=rs,
-                        n_jobs=-1,
-                        device=gpu,
-                        verbosity=0,
-                    )
-                    if n_classes > 2:
-                        # logloss is a binary-only metric: it compares the raw
-                        # margin to labels, so on multiclass data the prediction
-                        # matrix is wider than the label vector and XGBoost
-                        # aborts with a size-mismatch check failure. mlogloss is
-                        # the multiclass equivalent.
-                        xgb_clf_kwargs["eval_metric"] = "mlogloss"
-                    else:
-                        xgb_clf_kwargs["eval_metric"] = "logloss"
-                        xgb_clf_kwargs["scale_pos_weight"] = (
-                            self.profile.get("imbalance_ratio") or 1.0
-                        )
-                    models["XGBoost"] = _make_xgb_classifier(**xgb_clf_kwargs)
-                lightgbm = load_optional("lightgbm")
-                if lightgbm is not None:
-                    models["LightGBM"] = lightgbm.LGBMClassifier(
-                        n_estimators=500, learning_rate=0.05, num_leaves=63,
-                        subsample=0.8, colsample_bytree=0.8,
-                        class_weight=class_weight, random_state=rs,
-                        n_jobs=-1, verbosity=-1,
-                    )
-                catboost = load_optional("catboost")
-                if catboost is not None:
-                    models["CatBoost"] = catboost.CatBoostClassifier(
-                        iterations=500, learning_rate=0.05, depth=6,
-                        eval_metric="Accuracy", random_seed=rs, verbose=0,
-                        auto_class_weights="Balanced" if class_weight else None,
-                        task_type="GPU" if detect_gpu() else "CPU",
-                    )
             if self.mode == "competition":
                 models["AdaBoost"] = AdaBoostClassifier(n_estimators=300, random_state=rs)
 
         else:
             models["LinearRegression"] = LinearRegression(n_jobs=-1)
             models["Ridge"] = Ridge(random_state=rs)
-            models["Lasso"] = Lasso(random_state=rs, max_iter=5000)
-            models["ElasticNet"] = ElasticNet(random_state=rs, max_iter=5000)
-            models["RandomForest"] = RandomForestRegressor(
-                n_estimators=300, random_state=rs, n_jobs=-1
-            )
-            models["ExtraTrees"] = ExtraTreesRegressor(
-                n_estimators=300, random_state=rs, n_jobs=-1
-            )
+
+            # High-performance gradient boosters
+            lightgbm = load_optional("lightgbm")
+            if lightgbm is not None and self.mode in ("balanced", "competition"):
+                models["LightGBM"] = lightgbm.LGBMRegressor(
+                    n_estimators=500, learning_rate=0.05, num_leaves=63,
+                    subsample=0.8, colsample_bytree=0.8,
+                    random_state=rs, n_jobs=-1, verbosity=-1,
+                )
+
+            if is_available("xgboost") and self.mode in ("balanced", "competition"):
+                models["XGBoost"] = _make_xgb_regressor(
+                    early_stopping_rounds=50,
+                    n_estimators=500,
+                    learning_rate=0.05,
+                    max_depth=6,
+                    subsample=0.8,
+                    colsample_bytree=0.8,
+                    eval_metric="rmse",
+                    random_state=rs,
+                    n_jobs=-1,
+                    device=gpu,
+                    verbosity=0,
+                )
+
+            catboost = load_optional("catboost")
+            if catboost is not None and self.mode in ("balanced", "competition"):
+                models["CatBoost"] = catboost.CatBoostRegressor(
+                    iterations=500, learning_rate=0.05, depth=6,
+                    random_seed=rs, verbose=0,
+                    task_type="GPU" if detect_gpu() else "CPU",
+                )
+
             models["HistGBM"] = HistGradientBoostingRegressor(
                 max_iter=500, random_state=rs, early_stopping=True, n_iter_no_change=20
             )
+
+            # Forest ensembles
+            rf_trees = 150 if n > 50_000 else 300
+            models["RandomForest"] = RandomForestRegressor(
+                n_estimators=rf_trees, random_state=rs, n_jobs=-1
+            )
+            models["ExtraTrees"] = ExtraTreesRegressor(
+                n_estimators=rf_trees, random_state=rs, n_jobs=-1
+            )
+
+            models["Lasso"] = Lasso(random_state=rs, max_iter=5000)
+            models["ElasticNet"] = ElasticNet(random_state=rs, max_iter=5000)
             models["MLP"] = MLPRegressor(
                 hidden_layer_sizes=(256, 128), max_iter=500,
                 random_state=rs, early_stopping=True,
@@ -382,34 +423,6 @@ class ModelZoo:
             if self.mode in ("balanced", "competition"):
                 if n <= _KNN_CAPACITY_CAP:
                     models["KNN"] = KNeighborsRegressor(n_neighbors=7, n_jobs=-1)
-                if is_available("xgboost"):
-                    models["XGBoost"] = _make_xgb_regressor(
-                        early_stopping_rounds=50,
-                        n_estimators=500,
-                        learning_rate=0.05,
-                        max_depth=6,
-                        subsample=0.8,
-                        colsample_bytree=0.8,
-                        eval_metric="rmse",
-                        random_state=rs,
-                        n_jobs=-1,
-                        device=gpu,
-                        verbosity=0,
-                    )
-                lightgbm = load_optional("lightgbm")
-                if lightgbm is not None:
-                    models["LightGBM"] = lightgbm.LGBMRegressor(
-                        n_estimators=500, learning_rate=0.05, num_leaves=63,
-                        subsample=0.8, colsample_bytree=0.8,
-                        random_state=rs, n_jobs=-1, verbosity=-1,
-                    )
-                catboost = load_optional("catboost")
-                if catboost is not None:
-                    models["CatBoost"] = catboost.CatBoostRegressor(
-                        iterations=500, learning_rate=0.05, depth=6,
-                        random_seed=rs, verbose=0,
-                        task_type="GPU" if detect_gpu() else "CPU",
-                    )
             if self.mode == "competition":
                 models["AdaBoost"] = AdaBoostRegressor(n_estimators=300, random_state=rs)
 

@@ -24,6 +24,7 @@ dive_output/
 dive_autopilot_out/
 .dive_store/
 higgs_best_model/
+higgs_max_quality/
 higgs_*.json
 *.pkl
 predictions.csv
