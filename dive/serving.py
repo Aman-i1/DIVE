@@ -150,14 +150,113 @@ def create_serving_app(predictor: DivePredictor) -> Any:
     return app
 
 
+def _serve_builtin_http_server(
+    predictor: DivePredictor, host: str = "127.0.0.1", port: int = 8000
+) -> None:
+    """Zero-dependency HTTP server fallback for REST model serving."""
+    from http.server import HTTPServer, BaseHTTPRequestHandler
+    import json
+
+    metrics_tracker = ServerMetricsTracker()
+
+    class ModelHTTPHandler(BaseHTTPRequestHandler):
+        def _send_json(self, status: int, data: Dict[str, Any]) -> None:
+            self.send_response(status)
+            self.send_header("Content-Type", "application/json")
+            self.end_headers()
+            self.wfile.write(json.dumps(data, default=str).encode("utf-8"))
+
+        def do_GET(self) -> None:
+            if self.path == "/health":
+                self._send_json(200, {
+                    "status": "healthy",
+                    "model_name": predictor.model_name,
+                    "problem_type": predictor.problem_type,
+                    "target": predictor.target,
+                    "dive_version": predictor.dive_version,
+                })
+            elif self.path == "/metadata":
+                self._send_json(200, {
+                    "model_name": predictor.model_name,
+                    "problem_type": predictor.problem_type,
+                    "target": predictor.target,
+                    "metrics": predictor.metrics,
+                    "dataset_name": predictor.dataset_name,
+                    "trained_at": predictor.trained_at,
+                    "required_columns": predictor.required_columns,
+                })
+            elif self.path == "/schema":
+                self._send_json(200, predictor.input_schema)
+            elif self.path == "/metrics":
+                self._send_json(200, metrics_tracker.get_summary())
+            else:
+                self._send_json(404, {"error": "Not found"})
+
+        def do_POST(self) -> None:
+            start = time.perf_counter()
+            content_length = int(self.headers.get("Content-Length", 0))
+            body = self.rfile.read(content_length).decode("utf-8")
+            try:
+                payload = json.loads(body) if body else {}
+                data = payload.get("data", payload)
+            except Exception as exc:
+                self._send_json(400, {"error": f"Invalid JSON body: {exc}"})
+                return
+
+            if self.path == "/predict":
+                try:
+                    preds = predictor.predict(data)
+                    latency = (time.perf_counter() - start) * 1000.0
+                    metrics_tracker.log_request(latency, is_error=False)
+                    pred_list = preds.tolist() if hasattr(preds, "tolist") else list(preds)
+                    self._send_json(200, {
+                        "predictions": pred_list,
+                        "model_name": predictor.model_name,
+                        "latency_ms": round(latency, 2),
+                    })
+                except Exception as exc:
+                    latency = (time.perf_counter() - start) * 1000.0
+                    metrics_tracker.log_request(latency, is_error=True)
+                    self._send_json(400, {"error": str(exc)})
+
+            elif self.path == "/predict_proba":
+                if not predictor.has_proba:
+                    self._send_json(400, {"error": "Predictor does not support probability predictions."})
+                    return
+                try:
+                    proba = predictor.predict_proba(data)
+                    latency = (time.perf_counter() - start) * 1000.0
+                    metrics_tracker.log_request(latency, is_error=False)
+                    proba_list = proba.values.tolist() if hasattr(proba, "values") else (
+                        proba.tolist() if hasattr(proba, "tolist") else list(proba)
+                    )
+                    self._send_json(200, {
+                        "probabilities": proba_list,
+                        "class_names": predictor.class_names,
+                        "model_name": predictor.model_name,
+                        "latency_ms": round(latency, 2),
+                    })
+                except Exception as exc:
+                    latency = (time.perf_counter() - start) * 1000.0
+                    metrics_tracker.log_request(latency, is_error=True)
+                    self._send_json(400, {"error": str(exc)})
+            else:
+                self._send_json(404, {"error": "Not found"})
+
+        def log_message(self, format: str, *args: Any) -> None:
+            pass
+
+    server = HTTPServer((host, port), ModelHTTPHandler)
+    server.serve_forever()
+
+
 def serve_model(
     predictor: DivePredictor, host: str = "127.0.0.1", port: int = 8000
 ) -> None:
-    """Launch HTTP uvicorn server serving the predictor."""
-    if not is_available("uvicorn"):
-        raise ImportError(
-            "uvicorn is required to run the server. Install with `pip install uvicorn`."
-        )
-    uvicorn = load_optional("uvicorn")
-    app = create_serving_app(predictor)
-    uvicorn.run(app, host=host, port=port)
+    """Launch HTTP server serving the predictor (FastAPI+Uvicorn if available, else built-in HTTP server)."""
+    if is_available("uvicorn") and is_available("fastapi"):
+        uvicorn = load_optional("uvicorn")
+        app = create_serving_app(predictor)
+        uvicorn.run(app, host=host, port=port)
+    else:
+        _serve_builtin_http_server(predictor, host=host, port=port)

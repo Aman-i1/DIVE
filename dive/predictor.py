@@ -203,7 +203,12 @@ class DivePredictor:
     def _prepare(self, data: RawInput) -> pd.DataFrame:
         """Validate raw input, then apply the fitted training-time transforms."""
         frame = self._coerce(data)
-        frame.columns = [str(c) for c in frame.columns]
+        frame.columns = [str(c).strip() for c in frame.columns]
+        for c in frame.columns:
+            if frame[c].dtype == object:
+                num_s = pd.to_numeric(frame[c], errors="coerce")
+                if num_s.notna().sum() / max(len(frame), 1) > 0.80:
+                    frame[c] = num_s
 
         # The target may be present (scoring a labelled holdout); it is never an
         # input to the model, so drop it rather than letting it look like noise.
@@ -312,14 +317,71 @@ class DivePredictor:
 
 
 def load_predictor(path: Any) -> DivePredictor:
-    """Load a predictor pickle written by ``dive train``."""
+    """Load a predictor pickle written by ``dive train`` or wrap a full-run ``model.pkl``."""
     from dive.utils.io import load_pickle
 
-    obj = load_pickle(path)
-    if not isinstance(obj, DivePredictor):
-        raise TypeError(
-            f"{Path(str(path)).name} does not contain a DivePredictor "
-            f"(found {type(obj).__name__}). The full-run artifact is model.pkl - "
-            "load that with Dive.load()."
+    resolved_path = Path(str(path))
+    obj = load_pickle(resolved_path)
+    if isinstance(obj, DivePredictor):
+        return obj
+
+    # If the user supplied the full-run model.pkl
+    if isinstance(obj, dict) and "best_estimator" in obj:
+        # 1. First check if adjacent models/ directory holds the exported DivePredictor
+        models_dir = resolved_path.parent / "models"
+        metadata = obj.get("metadata") or {}
+        best_name = metadata.get("best_model")
+        if models_dir.exists() and best_name:
+            for pkl_file in models_dir.glob("*.pkl"):
+                if f"__{best_name}.pkl" in pkl_file.name or best_name in pkl_file.name:
+                    try:
+                        cand = load_pickle(pkl_file)
+                        if isinstance(cand, DivePredictor):
+                            return cand
+                    except Exception:
+                        pass
+
+        # 2. Reconstruct DivePredictor from the saved full-run payload
+        from dive.core import Dive
+        dive_inst = Dive.load(resolved_path)
+        feat_cols = list(dive_inst.feature_columns_ or [])
+        columns_meta = []
+        for col in feat_cols:
+            columns_meta.append({
+                "name": str(col),
+                "dtype": "float64",
+                "kind": "numeric",
+                "required": True,
+                "used_by_model": True,
+                "nullable": False,
+                "example": None,
+            })
+        schema = {
+            "target": str(dive_inst.target),
+            "n_features": len(feat_cols),
+            "columns": columns_meta,
+            "required_columns": feat_cols,
+            "optional_columns": [],
+            "column_order": feat_cols,
+            "example_row": {},
+        }
+        return DivePredictor(
+            model_name=dive_inst.best_model_name_ or "Champion",
+            estimator=dive_inst.best_estimator_,
+            feature_engineer=dive_inst.feature_engineer_,
+            feature_columns=feat_cols,
+            label_encoder=dive_inst.label_encoder_,
+            label_lookup=dict(getattr(dive_inst, "label_lookup_", {}) or {}),
+            target=str(dive_inst.target),
+            problem_type=str(dive_inst.problem_type),
+            input_schema=schema,
+            metrics={},
+            dataset_name=resolved_path.stem,
+            dive_version="0.1.0",
+            trained_at="",
         )
-    return obj
+
+    raise TypeError(
+        f"{resolved_path.name} does not contain a DivePredictor or valid Dive model artifact "
+        f"(found {type(obj).__name__})."
+    )

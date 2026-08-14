@@ -26,6 +26,7 @@ dive_autopilot_out/
 higgs_best_model/
 higgs_max_quality/
 higgs_*.json
+higgs_*.csv
 *.pkl
 predictions.csv
 
