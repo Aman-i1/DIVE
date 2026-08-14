@@ -18,12 +18,22 @@ __version__ = "0.1.0"
 from dive.advisor import ModelAdvisor, ValidationAdvisor
 from dive.artifact_store import ArtifactStore, StoredArtifact
 from dive.audit import AuditCertificate, ComplianceAuditor
+from dive.batch_inference import BatchInferenceEngine, BatchInferenceStats
 from dive.calibration import ProbabilityCalibrator
+from dive.champion_challenger import (
+    ChampionChallengerEvaluator,
+    PromotionVerdict,
+)
 from dive.core import Dive, Evaluator, build_preprocessor, quick_dive
 from dive.data_intelligence import DataIntelligence
 from dive.decisions import DecisionLogger, DecisionRecord
 from dive.doctor import DiveDoctor, ProductionReadinessScore
 from dive.drift import DriftDetector
+from dive.observability import (
+    DriftMetricResult,
+    ObservabilityEngine,
+    ObservabilityReport,
+)
 from dive.lineage import LineageGraph, LineageNode
 from dive.reproducibility import (
     ReproducibilityBundleExporter,
@@ -155,6 +165,13 @@ __all__ = [
     "LineageNode",
     "ReproducibilityBundleExporter",
     "ReproducibilityBundleMetadata",
+    "BatchInferenceEngine",
+    "BatchInferenceStats",
+    "ObservabilityEngine",
+    "ObservabilityReport",
+    "DriftMetricResult",
+    "ChampionChallengerEvaluator",
+    "PromotionVerdict",
     "DiveError",
     "ConfigError",
     "DataError",
