@@ -55,7 +55,91 @@ class ServerMetricsTracker:
         }
 
 
-def create_serving_app(predictor: DivePredictor) -> Any:
+def get_help_documentation(
+    predictor: DivePredictor, host: str = "127.0.0.1", port: int = 8000
+) -> Dict[str, Any]:
+    """Return comprehensive user documentation and interactive guides for the serving REST API."""
+    import json
+    base_url = f"http://{host}:{port}"
+    example_row = predictor.input_schema.get("example_row")
+    if not example_row:
+        example_row = {c: 0.0 for c in predictor.required_columns}
+
+    endpoints: Dict[str, Any] = {
+        "GET /help": {
+            "description": "API interactive user guide, endpoint references, and request/response samples.",
+            "method": "GET",
+            "url": f"{base_url}/help",
+        },
+        "GET /health": {
+            "description": "Health status and liveness probe for the model server.",
+            "method": "GET",
+            "url": f"{base_url}/health",
+        },
+        "GET /metadata": {
+            "description": "Model architecture, validation scores, and training metadata.",
+            "method": "GET",
+            "url": f"{base_url}/metadata",
+        },
+        "GET /schema": {
+            "description": "Formal input schema, required feature list, datatypes, and allowable values.",
+            "method": "GET",
+            "url": f"{base_url}/schema",
+        },
+        "POST /predict": {
+            "description": "Generate point predictions for a single row or batch of raw records.",
+            "method": "POST",
+            "url": f"{base_url}/predict",
+            "content_type": "application/json",
+            "body_format": '{"data": [ { ...feature_key: feature_value... } ]}',
+        },
+        "GET /metrics": {
+            "description": "Server performance metrics, request count, error count, and latency percentiles (p50, p95, p99).",
+            "method": "GET",
+            "url": f"{base_url}/metrics",
+        },
+    }
+    if predictor.has_proba:
+        endpoints["POST /predict_proba"] = {
+            "description": "Generate calibrated class probabilities for classification models.",
+            "method": "POST",
+            "url": f"{base_url}/predict_proba",
+            "content_type": "application/json",
+            "body_format": '{"data": [ { ...feature_key: feature_value... } ]}',
+        }
+
+    sample_body = json.dumps({"data": [example_row]})
+    curl_examples: Dict[str, Any] = {
+        "health_check": f"curl -X GET {base_url}/health",
+        "view_schema": f"curl -X GET {base_url}/schema",
+        "predict": f"curl -X POST {base_url}/predict -H \"Content-Type: application/json\" -d '{sample_body}'",
+    }
+    if predictor.has_proba:
+        curl_examples["predict_proba"] = f"curl -X POST {base_url}/predict_proba -H \"Content-Type: application/json\" -d '{sample_body}'"
+
+    return {
+        "service": "DIVE Production REST Model Server",
+        "model_name": predictor.model_name,
+        "problem_type": predictor.problem_type,
+        "target": predictor.target,
+        "dive_version": predictor.dive_version or "0.1.0",
+        "required_features": predictor.required_columns,
+        "endpoints": endpoints,
+        "sample_input_payload": {
+            "data": [example_row]
+        },
+        "curl_examples": curl_examples,
+        "python_usage_example": (
+            f"import requests\n\n"
+            f"url = '{base_url}/predict'\n"
+            f"payload = {{'data': [{example_row}]}}\n"
+            f"response = requests.post(url, json=payload)\n"
+            f"print(response.json())"
+        ),
+    }
+
+
+def create_serving_app(predictor: DivePredictor, host: str = "127.0.0.1", port: int = 8000) -> Any:
     """Build a FastAPI application exposing predictor endpoints."""
     if not is_available("fastapi"):
         raise ImportError(
@@ -72,6 +156,11 @@ def create_serving_app(predictor: DivePredictor) -> Any:
     )
 
     metrics_tracker = ServerMetricsTracker()
+
+    @app.get("/")
+    @app.get("/help")
+    def get_help() -> Dict[str, Any]:
+        return get_help_documentation(predictor, host=host, port=port)
 
     @app.get("/health")
     def health_check() -> Dict[str, Any]:
@@ -167,7 +256,9 @@ def _serve_builtin_http_server(
             self.wfile.write(json.dumps(data, default=str).encode("utf-8"))
 
         def do_GET(self) -> None:
-            if self.path == "/health":
+            if self.path in ("/help", "/", "/help/"):
+                self._send_json(200, get_help_documentation(predictor, host=host, port=port))
+            elif self.path == "/health":
                 self._send_json(200, {
                     "status": "healthy",
                     "model_name": predictor.model_name,
@@ -256,7 +347,7 @@ def serve_model(
     """Launch HTTP server serving the predictor (FastAPI+Uvicorn if available, else built-in HTTP server)."""
     if is_available("uvicorn") and is_available("fastapi"):
         uvicorn = load_optional("uvicorn")
-        app = create_serving_app(predictor)
+        app = create_serving_app(predictor, host=host, port=port)
         uvicorn.run(app, host=host, port=port)
     else:
         _serve_builtin_http_server(predictor, host=host, port=port)

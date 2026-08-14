@@ -44,3 +44,27 @@ def test_model_monitor() -> None:
         assert summary.total_requests == 2
         assert summary.avg_latency_ms > 0
         assert "1" in summary.prediction_distribution
+
+
+def test_get_help_documentation() -> None:
+    from dive.predictor import DivePredictor
+    from dive.serving import get_help_documentation
+
+    predictor = DivePredictor(
+        model_name="MockModel",
+        estimator=None,
+        feature_engineer=None,
+        feature_columns=["f1", "f2"],
+        label_encoder=None,
+        target="target",
+        problem_type="classification",
+        input_schema={"required_columns": ["f1", "f2"], "example_row": {"f1": 1.0, "f2": 2.0}},
+    )
+
+    doc = get_help_documentation(predictor, host="127.0.0.1", port=8000)
+    assert doc["service"] == "DIVE Production REST Model Server"
+    assert doc["model_name"] == "MockModel"
+    assert "GET /help" in doc["endpoints"]
+    assert "POST /predict" in doc["endpoints"]
+    assert "curl_examples" in doc
+    assert "python_usage_example" in doc
