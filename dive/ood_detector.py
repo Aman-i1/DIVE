@@ -79,6 +79,18 @@ class OODDetector:
         except Exception:
             self.cov_inv_ = np.eye(cov.shape[0])
 
+        # Store training distribution references for score calibration
+        diff_train = X_pca - self.mean_vector_
+        if self.cov_inv_ is not None:
+            dist_sq_train = np.sum((diff_train @ self.cov_inv_) * diff_train, axis=1)
+            train_mahal = np.sqrt(np.maximum(dist_sq_train, 0.0))
+            self.train_mahal_ref_ = float(np.percentile(train_mahal, 95)) if len(train_mahal) > 0 else 1.0
+        else:
+            self.train_mahal_ref_ = 1.0
+
+        train_iso_raw = -self.iso_forest_.score_samples(X_pca)
+        self.train_iso_ref_ = float(np.percentile(train_iso_raw, 95)) if len(train_iso_raw) > 0 else 1.0
+
         self.is_fitted_ = True
         return self
 
@@ -100,17 +112,16 @@ class OODDetector:
         X_scaled = self.scaler_.transform(numeric_df.to_numpy())
         X_pca = self.pca_.transform(X_scaled) if self.pca_ is not None else X_scaled
 
-        # 1. Isolation Forest anomaly scores (mapped 0.0 to 1.0)
-        iso_raw = -self.iso_forest_.score_samples(X_pca)  # higher = more anomalous
-        iso_scores = (iso_raw - iso_raw.min()) / max(iso_raw.max() - iso_raw.min(), 1e-6)
+        # 1. Isolation Forest anomaly scores relative to training threshold
+        iso_raw = -self.iso_forest_.score_samples(X_pca)
+        iso_scores = np.clip(iso_raw / max(self.train_iso_ref_, 1e-6) * 0.5, 0.0, 1.0)
 
-        # 2. Mahalanobis distance scores
+        # 2. Mahalanobis distance scores relative to training threshold
         diff = X_pca - self.mean_vector_
         if self.cov_inv_ is not None:
             dist_sq = np.sum((diff @ self.cov_inv_) * diff, axis=1)
             mahal_dist = np.sqrt(np.maximum(dist_sq, 0.0))
-            mahal_scores = mahal_dist / (np.median(mahal_dist) * 3.0 + 1e-6)
-            mahal_scores = np.clip(mahal_scores, 0.0, 1.0)
+            mahal_scores = np.clip(mahal_dist / max(self.train_mahal_ref_, 1e-6) * 0.5, 0.0, 1.0)
         else:
             mahal_scores = iso_scores
 
@@ -120,9 +131,9 @@ class OODDetector:
 
         status_labels: List[str] = []
         for s in composite_scores:
-            if s > 0.75:
+            if s > 0.70:
                 status_labels.append("OOD")
-            elif s > 0.50:
+            elif s > 0.45:
                 status_labels.append("LOW_CONFIDENCE")
             else:
                 status_labels.append("SAFE")
