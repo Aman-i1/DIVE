@@ -29,11 +29,9 @@ def review_command(
 ) -> None:
     """Execute Senior ML Review on dataset."""
     console = get_console()
+    from dive.utils.io import load_dataframe
     try:
-        if data_path.endswith((".parquet", ".pq")):
-            df = pd.read_parquet(data_path)
-        else:
-            df = pd.read_csv(data_path)
+        df = load_dataframe(data_path)
     except Exception as exc:
         console.error(f"Failed to read dataset: {exc}")
         sys.exit(1)

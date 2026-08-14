@@ -23,6 +23,8 @@ catboost_info/
 dive_output/
 dive_autopilot_out/
 .dive_store/
+higgs_best_model/
+higgs_*.json
 *.pkl
 predictions.csv
 

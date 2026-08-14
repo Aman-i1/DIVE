@@ -184,14 +184,23 @@ def _read_by_format(fmt: str, resolved: Path, max_rows: Optional[int]) -> pd.Dat
         explicit = {".tsv": "\t", ".psv": "|"}
         stem_suffix = _payload_suffix(resolved)
         separator = explicit.get(stem_suffix)
-        return pd.read_csv(
+        df = pd.read_csv(
             resolved,
             sep=separator,
             engine="python" if separator is None else "c",
             nrows=max_rows,
             encoding="utf-8",
             encoding_errors="replace",
+            na_values=["?", "NA", "null", "None", "", "N/A"],
         )
+        df.columns = [str(c).strip() for c in df.columns]
+        # Automatically coerce object columns that are numeric
+        for c in df.columns:
+            if df[c].dtype == object:
+                num_series = pd.to_numeric(df[c], errors="coerce")
+                if num_series.notna().sum() / max(len(df), 1) > 0.80:
+                    df[c] = num_series
+        return df
     if fmt == "parquet":
         return pd.read_parquet(resolved)
     if fmt == "json":
