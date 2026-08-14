@@ -833,7 +833,14 @@ def gate_command(
 
 
 from dive.commands.auto import auto_command
+from dive.commands.autopilot import autopilot_command
+from dive.commands.contract import contract_command
+from dive.commands.review import review_command
+
 cli.add_command(auto_command, "auto")
+cli.add_command(autopilot_command, "autopilot")
+cli.add_command(contract_command, "contract")
+cli.add_command(review_command, "review")
 
 
 

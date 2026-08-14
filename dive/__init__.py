@@ -16,8 +16,13 @@ from __future__ import annotations
 __version__ = "0.1.0"
 
 from dive.advisor import ModelAdvisor, ValidationAdvisor
+from dive.adversarial_validation import (
+    AdversarialValidationReport,
+    AdversarialValidator,
+)
 from dive.artifact_store import ArtifactStore, StoredArtifact
 from dive.audit import AuditCertificate, ComplianceAuditor
+from dive.autopilot import AutopilotOrchestrator, AutopilotResult
 from dive.batch_inference import BatchInferenceEngine, BatchInferenceStats
 from dive.calibration import ProbabilityCalibrator
 from dive.champion_challenger import (
@@ -25,21 +30,38 @@ from dive.champion_challenger import (
     PromotionVerdict,
 )
 from dive.config import DiveConfig
+from dive.contamination import ContaminationDetector, ContaminationReport
 from dive.core import Dive, Evaluator, build_preprocessor, quick_dive
 from dive.data_intelligence import DataIntelligence
+from dive.data_quality import (
+    DataQualityEngine,
+    DataQualityReport,
+    InferredRelationalRule,
+)
 from dive.decisions import DecisionLogger, DecisionRecord
 from dive.doctor import DiveDoctor, ProductionReadinessScore
 from dive.drift import DriftDetector
+from dive.failure_segments import (
+    FailureSegment,
+    FailureSegmentAnalyzer,
+    FailureSegmentsReport,
+)
+from dive.model_stress import ModelStressTester, StressTestReport
 from dive.observability import (
     DriftMetricResult,
     ObservabilityEngine,
     ObservabilityReport,
 )
 from dive.lineage import LineageGraph, LineageNode
+from dive.prediction_contract import (
+    PredictionContract,
+    PredictionContractEngine,
+)
 from dive.reproducibility import (
     ReproducibilityBundleExporter,
     ReproducibilityBundleMetadata,
 )
+from dive.senior_review import SeniorReviewEngine, SeniorReviewReport
 from dive.exceptions import (
     DiveError,
     ConfigError,
@@ -173,7 +195,24 @@ __all__ = [
     "ObservabilityReport",
     "DriftMetricResult",
     "ChampionChallengerEvaluator",
-    "PromotionVerdict",
+    "PredictionContract",
+    "PredictionContractEngine",
+    "DataQualityEngine",
+    "DataQualityReport",
+    "InferredRelationalRule",
+    "ContaminationDetector",
+    "ContaminationReport",
+    "AdversarialValidator",
+    "AdversarialValidationReport",
+    "ModelStressTester",
+    "StressTestReport",
+    "FailureSegmentAnalyzer",
+    "FailureSegmentsReport",
+    "FailureSegment",
+    "SeniorReviewEngine",
+    "SeniorReviewReport",
+    "AutopilotOrchestrator",
+    "AutopilotResult",
     "DiveConfig",
     "SecurityAuditor",
     "SecurityAuditResult",
