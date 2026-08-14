@@ -832,6 +832,10 @@ def gate_command(
     ctx.exit(code)
 
 
+from dive.commands.auto import auto_command
+cli.add_command(auto_command, "auto")
+
+
 
 
 

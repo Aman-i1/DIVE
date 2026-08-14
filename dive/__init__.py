@@ -24,6 +24,7 @@ from dive.champion_challenger import (
     ChampionChallengerEvaluator,
     PromotionVerdict,
 )
+from dive.config import DiveConfig
 from dive.core import Dive, Evaluator, build_preprocessor, quick_dive
 from dive.data_intelligence import DataIntelligence
 from dive.decisions import DecisionLogger, DecisionRecord
@@ -69,6 +70,7 @@ from dive.model_zoo import ModelZoo
 from dive.ood_detector import OODDetector, OODResult
 from dive.registry import ModelRegistry, PromotionGate
 from dive.search_scheduler import ASHASearchScheduler, Rung, Trial
+from dive.security import SecurityAuditResult, SecurityAuditor
 from dive.stacking_calibrated import (
     CalibratedStackingEnsemble,
     EnsembleWeightsResult,
@@ -172,6 +174,9 @@ __all__ = [
     "DriftMetricResult",
     "ChampionChallengerEvaluator",
     "PromotionVerdict",
+    "DiveConfig",
+    "SecurityAuditor",
+    "SecurityAuditResult",
     "DiveError",
     "ConfigError",
     "DataError",
