@@ -47,10 +47,16 @@ from dive.meta_learning import (
     MetaLearningEngine,
     MetaWarmStartPriors,
 )
+from dive.ensemble_diversity import DiversityMatrix, ModelDiversityEvaluator
+from dive.inference_router import DynamicInferenceRouter, RoutedPredictionResult
 from dive.model_zoo import ModelZoo
 from dive.ood_detector import OODDetector, OODResult
 from dive.registry import ModelRegistry, PromotionGate
 from dive.search_scheduler import ASHASearchScheduler, Rung, Trial
+from dive.stacking_calibrated import (
+    CalibratedStackingEnsemble,
+    EnsembleWeightsResult,
+)
 from dive.study import Study, create_study
 from dive.temporal_features import LeakageSafeTemporalEngine
 from dive.trust import (
@@ -131,6 +137,12 @@ __all__ = [
     "TrustEngine",
     "TrustReport",
     "PerturbationRobustnessResult",
+    "DiversityMatrix",
+    "ModelDiversityEvaluator",
+    "CalibratedStackingEnsemble",
+    "EnsembleWeightsResult",
+    "DynamicInferenceRouter",
+    "RoutedPredictionResult",
     "DiveError",
     "ConfigError",
     "DataError",
