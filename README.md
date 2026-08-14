@@ -106,32 +106,31 @@ dive serve --model ./dive_out/model.pkl --port 8000
 dive drift --ref sales.csv --curr production_week1.csv
 ```
 
-### Python API Workflow
+### CLI Command Index
 
-```python
-import pandas as pd
-from dive import create_study, DiveDoctor, load_predictor
+> For complete flag-by-flag documentation, real-world examples, and failure modes, see the [**Complete CLI Reference Manual**](docs/CLI_COMMANDS_REFERENCE.md).
 
-# Load dataset
-df = pd.read_csv("sales.csv")
-
-# 1. Execute end-to-end Autonomous Study
-study = create_study(
-    data=df,
-    target="churn",
-    mode="balanced",
-    time_budget="300s",
-    output_dir="./dive_out",
-)
-study.fit()
-
-# 2. Inspect explainable automated decisions
-print(study.explain_decisions())
-
-# 3. Score new observations with fitted predictor
-predictor = load_predictor("./dive_out/model.pkl")
-preds = predictor.predict(new_df)
-```
+| Command | Category | Purpose | Typical Command |
+|---|---|---|---|
+| `dive autopilot` | Orchestration | Full 20-step Senior ML Review, Reliability & AutoML | `dive autopilot data.csv --target churn --budget 10m` |
+| `dive auto` | Orchestration | Declarative YAML or autonomous study execution | `dive auto data.csv --target churn --mode balanced` |
+| `dive train` | Training | Model zoo search, tuning, calibrated stacking & reports | `dive train data.csv --target churn --output ./out` |
+| `dive predict` | Inference | High-throughput batch or terminal prediction machine | `dive predict --model model.pkl --data test.csv --proba` |
+| `dive contract` | Reliability | Formal Prediction Contract inference & specification | `dive contract data.csv --target churn --entity cust_id` |
+| `dive review` | Reliability | Senior ML Practitioner automated review & audit matrix | `dive review data.csv --target churn --output review.json` |
+| `dive gate` | Production | Pre-deployment verification gatekeeper for CI/CD | `dive gate model.pkl --data batch.csv --strict` |
+| `dive doctor` | Diagnostics | Pre-flight audit & 0-100 Production Readiness Score | `dive doctor data.csv --target churn` |
+| `dive serve` | Production | REST API server with interactive `/help` endpoint | `dive serve --model model.pkl --port 8000` |
+| `dive drift` | Observability | PSI / Kolmogorov-Smirnov continuous drift monitoring | `dive drift --ref train.csv --curr prod.csv` |
+| `dive explain` | Explainability | Permutation Importance, SHAP & partial dependence | `dive explain --model model.pkl --data test.csv` |
+| `dive report` | Reporting | Standalone interactive HTML & LaTeX research PDF | `dive report --model model.pkl --output ./report` |
+| `dive reproduce` | Reproducibility | Content-addressable SHA-256 bundle & `reproduce.py` | `dive reproduce --model model.pkl` |
+| `dive audit` | Compliance | Signed SHA-256 cryptographic compliance certificate | `dive audit --model model.pkl --output cert.json` |
+| `dive export` | Export | Export to ONNX, PMML, TorchScript, C-FFI, WASM | `dive export --model model.pkl --format onnx` |
+| `dive info` | Inspection | Deep structural & statistical dataset profiler | `dive info data.csv --target churn` |
+| `dive benchmark` | Benchmarking | Predictor latency, RAM, and throughput benchmarks | `dive benchmark --model model.pkl --data test.csv` |
+| `dive deps` | Environment | Hardware acceleration (CUDA) and library audit | `dive deps` |
+| `dive docs` | Documentation | Local offline documentation server & browser viewer | `dive docs --port 8080` |
 
 ---
 
