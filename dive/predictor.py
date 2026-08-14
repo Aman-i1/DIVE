@@ -185,9 +185,13 @@ class DivePredictor:
         )
 
     def _coerce(self, data: RawInput) -> pd.DataFrame:
-        """Accept a DataFrame, a single row dict, or a list of row dicts."""
+        """Accept a DataFrame, a single row dict, a list of row dicts, or numpy ndarray."""
         if isinstance(data, pd.DataFrame):
             return data.copy()
+        if isinstance(data, np.ndarray):
+            if self.feature_columns and data.ndim > 1 and data.shape[1] == len(self.feature_columns):
+                return pd.DataFrame(data, columns=self.feature_columns)
+            return pd.DataFrame(data)
         if isinstance(data, Mapping):
             return pd.DataFrame([dict(data)])
         if isinstance(data, Sequence) and not isinstance(data, (str, bytes)):
@@ -195,8 +199,8 @@ class DivePredictor:
             if rows and all(isinstance(row, Mapping) for row in rows):
                 return pd.DataFrame([dict(row) for row in rows])
         raise SchemaMismatch(
-            "predict() expects a pandas DataFrame, a dict of one row, or a list "
-            f"of row dicts - got {type(data).__name__}. "
+            "predict() expects a pandas DataFrame, a dict of one row, a list "
+            f"of row dicts, or a numpy ndarray - got {type(data).__name__}. "
             "Call .describe_input() to see the expected structure."
         )
 
@@ -223,8 +227,14 @@ class DivePredictor:
                 "Call .describe_input() for dtypes and an example row."
             )
 
-        engineered = self.feature_engineer.transform(frame)
-        return engineered.reindex(columns=self.feature_columns, fill_value=0)
+        if self.feature_engineer is not None:
+            engineered = self.feature_engineer.transform(frame)
+        else:
+            engineered = frame
+
+        if self.feature_columns:
+            return engineered.reindex(columns=self.feature_columns, fill_value=0)
+        return engineered
 
     # -- prediction -----------------------------------------------------
     def predict(self, data: RawInput) -> np.ndarray:
@@ -234,7 +244,7 @@ class DivePredictor:
         values from the training file), not as encoded integers.
         """
         predictions = self.estimator.predict(self._prepare(data))
-        if self.problem_type == "classification" and self.label_encoder is not None:
+        if self.problem_type in ("classification", "binary_classification", "multiclass") and self.label_encoder is not None:
             from dive.core import decode_labels
 
             predictions = decode_labels(
@@ -244,7 +254,7 @@ class DivePredictor:
 
     def predict_proba(self, data: RawInput) -> pd.DataFrame:
         """Class probabilities as a DataFrame with original class names."""
-        if self.problem_type != "classification":
+        if self.problem_type not in ("classification", "binary_classification", "multiclass"):
             raise SchemaMismatch(
                 f"predict_proba is classification-only; this predictor solves a "
                 f"{self.problem_type} problem."
@@ -325,7 +335,7 @@ def load_predictor(path: Any) -> DivePredictor:
     if isinstance(obj, DivePredictor):
         return obj
 
-    # If the user supplied the full-run model.pkl
+    # If the user supplied the full-run model.pkl (dict format)
     if isinstance(obj, dict) and "best_estimator" in obj:
         # 1. First check if adjacent models/ directory holds the exported DivePredictor
         models_dir = resolved_path.parent / "models"
@@ -381,7 +391,116 @@ def load_predictor(path: Any) -> DivePredictor:
             trained_at="",
         )
 
+    # If obj is a Dive instance
+    from dive.core import Dive
+    if isinstance(obj, Dive):
+        feat_cols = list(obj.feature_columns_ or [])
+        columns_meta = [
+            {
+                "name": str(col),
+                "dtype": "float64",
+                "kind": "numeric",
+                "required": True,
+                "used_by_model": True,
+                "nullable": False,
+                "example": None,
+            }
+            for col in feat_cols
+        ]
+        schema = {
+            "target": str(obj.target),
+            "n_features": len(feat_cols),
+            "columns": columns_meta,
+            "required_columns": feat_cols,
+            "optional_columns": [],
+            "column_order": feat_cols,
+            "example_row": {},
+        }
+        return DivePredictor(
+            model_name=obj.best_model_name_ or "Champion",
+            estimator=obj.best_estimator_,
+            feature_engineer=obj.feature_engineer_,
+            feature_columns=feat_cols,
+            label_encoder=obj.label_encoder_,
+            label_lookup=dict(getattr(obj, "label_lookup_", {}) or {}),
+            target=str(obj.target),
+            problem_type=str(obj.problem_type),
+            input_schema=schema,
+            metrics={},
+            dataset_name=resolved_path.stem,
+            dive_version="0.1.0",
+            trained_at="",
+        )
+
+    # If obj is a scikit-learn Pipeline or any estimator (e.g. from reproducibility bundle)
+    if hasattr(obj, "predict"):
+        import json
+        meta_file = resolved_path.parent / "metadata.json"
+        meta_dict = {}
+        if meta_file.exists():
+            try:
+                with open(meta_file, "r", encoding="utf-8") as mf:
+                    meta_dict = json.load(mf)
+            except Exception:
+                pass
+
+        target_name = meta_dict.get("target") or "target"
+        problem_type = meta_dict.get("problem_type")
+        if not problem_type:
+            has_proba = hasattr(obj, "predict_proba") or (
+                hasattr(obj, "steps") and hasattr(obj.steps[-1][1], "predict_proba")
+            )
+            problem_type = "classification" if has_proba else "regression"
+
+        if hasattr(obj, "steps"):
+            model_name = obj.steps[-1][0] or type(obj.steps[-1][1]).__name__
+        else:
+            model_name = type(obj).__name__
+
+        feat_cols = []
+        if hasattr(obj, "feature_names_in_"):
+            feat_cols = list(obj.feature_names_in_)
+        elif hasattr(obj, "steps") and hasattr(obj.steps[0][1], "feature_names_in_"):
+            feat_cols = list(obj.steps[0][1].feature_names_in_)
+
+        columns_meta = [
+            {
+                "name": str(col),
+                "dtype": "float64",
+                "kind": "numeric",
+                "required": True,
+                "used_by_model": True,
+                "nullable": False,
+                "example": None,
+            }
+            for col in feat_cols
+        ]
+        schema = {
+            "target": str(target_name),
+            "n_features": len(feat_cols),
+            "columns": columns_meta,
+            "required_columns": feat_cols,
+            "optional_columns": [],
+            "column_order": feat_cols,
+            "example_row": {},
+        }
+        return DivePredictor(
+            model_name=model_name,
+            estimator=obj,
+            feature_engineer=None,
+            feature_columns=feat_cols,
+            label_encoder=None,
+            label_lookup={},
+            target=str(target_name),
+            problem_type=str(problem_type),
+            input_schema=schema,
+            metrics={},
+            dataset_name=resolved_path.stem,
+            dive_version="0.1.0",
+            trained_at="",
+        )
+
     raise TypeError(
-        f"{resolved_path.name} does not contain a DivePredictor or valid Dive model artifact "
+        f"{resolved_path.name} does not contain a DivePredictor, Pipeline, or valid Dive model artifact "
         f"(found {type(obj).__name__})."
     )
