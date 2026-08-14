@@ -92,6 +92,34 @@ class Study:
         """Return list of decision dictionaries."""
         return self.orchestrator.logger.to_list()
 
+    @property
+    def best_estimator(self) -> Optional[Any]:
+        """Return the fitted champion pipeline."""
+        if self.result and "dive_engine" in self.result:
+            return self.result["dive_engine"].best_estimator_
+        return None
+
+    @property
+    def best_model_name(self) -> Optional[str]:
+        """Return the champion model name."""
+        if self.result:
+            return self.result.get("best_model_name")
+        return None
+
+    @property
+    def best_score(self) -> Optional[float]:
+        """Return the primary validation score of the champion model."""
+        if self.result:
+            return self.result.get("best_score")
+        return None
+
+    @property
+    def problem_type(self) -> Optional[str]:
+        """Return the detected problem type (classification or regression)."""
+        if self.result:
+            return self.result.get("problem_type")
+        return None
+
 
 def create_study(
     data: Union[str, Path, pd.DataFrame],
