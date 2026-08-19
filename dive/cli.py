@@ -143,9 +143,8 @@ class DiveCommand(click.Command):
         )
 
 
-# ----------------------------------------------------------------------
 class DiveGroup(click.Group):
-    """Command group that renders DiveError as a clean message.
+    """Command group that renders DiveError cleanly and formats help hierarchically.
 
     Error handling lives here rather than only in :func:`main` so that any
     entry point gets identical behaviour - including ``CliRunner`` in the test
@@ -164,6 +163,30 @@ class DiveGroup(click.Group):
             if ctx.obj and ctx.obj.get("traceback"):
                 raise
             ctx.exit(1)
+
+    def format_commands(self, ctx: click.Context, formatter: click.HelpFormatter) -> None:
+        """Format commands into clean, hierarchical domain and utility sections."""
+        # 1. Capability Domains
+        domains = []
+        for cmd_name in ["ml", "nlp"]:
+            cmd = self.get_command(ctx, cmd_name)
+            if cmd is not None:
+                help_text = cmd.get_short_help_str(limit=formatter.width)
+                domains.append((cmd_name, help_text))
+        if domains:
+            with formatter.section("Capability Domains"):
+                formatter.write_dl(domains)
+
+        # 2. Platform Utilities
+        utilities = []
+        for cmd_name in ["docs", "deps"]:
+            cmd = self.get_command(ctx, cmd_name)
+            if cmd is not None:
+                help_text = cmd.get_short_help_str(limit=formatter.width)
+                utilities.append((cmd_name, help_text))
+        if utilities:
+            with formatter.section("Platform Utilities"):
+                formatter.write_dl(utilities)
 
 
 @click.group(cls=DiveGroup, context_settings=CONTEXT_SETTINGS, invoke_without_command=False)
