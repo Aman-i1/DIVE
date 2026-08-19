@@ -119,6 +119,11 @@ class NLPPredictor:
         return self.pipeline.class_names
 
     @property
+    def classes_(self) -> Optional[List[str]]:
+        """Alias for class_names for scikit-learn convention compatibility."""
+        return self.class_names
+
+    @property
     def has_proba(self) -> bool:
         """True if the model can output probability distributions."""
         return self.task_type in ("text_classification", "classification") and hasattr(

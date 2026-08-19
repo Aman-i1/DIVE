@@ -31,11 +31,33 @@ def ml_command() -> None:
     """Tabular & Structured Data Machine Learning (DIVE ML) subcommands.
 
     \b
-    Examples:
+    Comprehensive Workflow Examples:
+      # 1. Audit dataset health, data leakage & production readiness
       dive ml doctor data.csv --target churn
-      dive ml auto data.csv --target churn
-      dive ml train data.csv --target revenue --mode fast
-      dive ml predict model.pkl --data new.csv --output preds.csv
-      dive ml serve model.pkl --port 8000
+
+      # 2. Autonomous zero-config AutoML search & leaderboard
+      dive ml auto data.csv --target churn --time-budget 300
+
+      # 3. Fast baseline training with HTML report
+      dive ml train data.csv --target revenue --mode fast --output ./model_dir
+
+      # 4. Score new data or launch interactive prediction terminal
+      dive ml predict ./model_dir/model.pkl --data new_data.csv --output preds.csv
+      dive ml predict ./model_dir/model.pkl  # interactive prompt mode
+
+      # 5. Serve model as high-performance REST API (FastAPI)
+      dive ml serve ./model_dir/model.pkl --port 8000
+
+      # 6. Audit production feature & prediction distribution drift
+      dive ml drift ./model_dir/model.pkl --data production.csv --ref training.csv
+
+      # 7. Pre-flight dataset crosscheck & validation suite
+      dive ml validate --data data.csv --target churn
+
+      # 8. Compute SHAP explanations & feature importances
+      dive ml explain ./model_dir/model.pkl
+
+      # 9. Render standalone HTML audit & performance report
+      dive ml report ./model_dir/model.pkl --output audit_report.html
     """
     pass
