@@ -75,6 +75,36 @@ _REGISTRY: Dict[str, OptionalPackage] = {
         extra="explain",
         provides="SHAP feature importance (falls back to native importances)",
     ),
+    "sentence_transformers": OptionalPackage(
+        name="sentence_transformers",
+        import_name="sentence_transformers",
+        extra="nlp",
+        provides="dense neural text embeddings (SentenceTransformers)",
+    ),
+    "transformers": OptionalPackage(
+        name="transformers",
+        import_name="transformers",
+        extra="nlp",
+        provides="Hugging Face Transformer architectures and tokenizers",
+    ),
+    "torch": OptionalPackage(
+        name="torch",
+        import_name="torch",
+        extra="nlp",
+        provides="PyTorch deep learning tensor runtime",
+    ),
+    "onnxruntime": OptionalPackage(
+        name="onnxruntime",
+        import_name="onnxruntime",
+        extra="serving",
+        provides="high-performance ONNX model inference runtime",
+    ),
+    "skl2onnx": OptionalPackage(
+        name="skl2onnx",
+        import_name="skl2onnx",
+        extra="serving",
+        provides="Scikit-Learn to ONNX model graph converter",
+    ),
 }
 
 _PROBED = False

@@ -181,7 +181,7 @@ def _read_by_format(fmt: str, resolved: Path, max_rows: Optional[int]) -> pd.Dat
         # semicolon, and whitespace-separated .dat/.txt files. Sniffing is not
         # safe for a known delimiter: header cells containing spaces can make
         # the sniffer pick the wrong character and silently split columns.
-        explicit = {".tsv": "\t", ".psv": "|"}
+        explicit = {".csv": ",", ".tsv": "\t", ".psv": "|"}
         stem_suffix = _payload_suffix(resolved)
         separator = explicit.get(stem_suffix)
         df = pd.read_csv(

@@ -172,17 +172,17 @@ class DiveGroup(click.Group):
 @click.option("--traceback", "show_traceback", is_flag=True, help="Print the full Python traceback on failure.")
 @click.pass_context
 def cli(ctx: click.Context, quiet: bool, show_traceback: bool) -> None:
-    """Automated machine learning for tabular data.
-
-    Train a model zoo on a CSV, validate a dataset before training, score new
-    rows with a saved model, and generate HTML reports - all from the terminal.
+    """DIVE - Unified Enterprise AutoML & Natural Language Processing Platform.
 
     \b
-    Typical flow:
-      dive validate --data data.csv --target label
-      dive train    --data data.csv --target label --mode fast --output ./out
-      dive predict  --model ./out/model.pkl --data new.csv --output preds.csv
-      dive report   --model ./out/model.pkl --output report.html
+    Capability Domains:
+      dive ml   -- Tabular & Structured Data Machine Learning
+      dive nlp  -- Natural Language Processing & Text Intelligence
+
+    \b
+    Quickstart:
+      dive ml --help     # View all tabular ML commands (train, auto, doctor, predict, etc.)
+      dive nlp --help    # View all NLP commands (profile, train, serve, monitor, etc.)
     """
     ctx.ensure_object(dict)
     ctx.obj["quiet"] = quiet
@@ -832,11 +832,38 @@ def gate_command(
     ctx.exit(code)
 
 
+from dive.commands.ml import ml_command
 from dive.commands.auto import auto_command
 from dive.commands.autopilot import autopilot_command
 from dive.commands.contract import contract_command
 from dive.commands.review import review_command
+from dive.commands.nlp import nlp_command
 
+# Attach all Tabular ML commands to `dive ml`
+ml_command.add_command(train_command, "train")
+ml_command.add_command(auto_command, "auto")
+ml_command.add_command(autopilot_command, "autopilot")
+ml_command.add_command(doctor_command, "doctor")
+ml_command.add_command(predict_command, "predict")
+ml_command.add_command(validate_command, "validate")
+ml_command.add_command(review_command, "review")
+ml_command.add_command(contract_command, "contract")
+ml_command.add_command(explain_command, "explain")
+ml_command.add_command(report_command, "report")
+ml_command.add_command(serve_command, "serve")
+ml_command.add_command(drift_command, "drift")
+ml_command.add_command(gate_command, "gate")
+ml_command.add_command(audit_command, "audit")
+ml_command.add_command(export_command, "export")
+ml_command.add_command(benchmark_command, "benchmark")
+ml_command.add_command(reproduce_command, "reproduce")
+ml_command.add_command(info_command, "info")
+
+# Register domain command groups on root `dive`
+cli.add_command(ml_command, "ml")
+cli.add_command(nlp_command, "nlp")
+
+# Root aliases for backward compatibility
 cli.add_command(auto_command, "auto")
 cli.add_command(autopilot_command, "autopilot")
 cli.add_command(contract_command, "contract")

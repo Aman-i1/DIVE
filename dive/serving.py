@@ -139,8 +139,15 @@ def get_help_documentation(
     }
 
 
-def create_serving_app(predictor: DivePredictor, host: str = "127.0.0.1", port: int = 8000) -> Any:
+def create_serving_app(predictor: Union[DivePredictor, Any], host: str = "127.0.0.1", port: int = 8000) -> Any:
     """Build a FastAPI application exposing predictor endpoints."""
+    # Check if this is an NLP predictor artifact
+    if (hasattr(predictor, "task_type") and str(predictor.task_type).startswith("text_")) or (
+        hasattr(predictor, "pipeline") and hasattr(predictor, "text_column")
+    ):
+        from dive.nlp.serving import create_nlp_serving_app
+        return create_nlp_serving_app(predictor, host=host, port=port)
+
     if not is_available("fastapi"):
         raise ImportError(
             "fastapi is required for model serving. Install with `pip install fastapi uvicorn`."
@@ -342,9 +349,15 @@ def _serve_builtin_http_server(
 
 
 def serve_model(
-    predictor: DivePredictor, host: str = "127.0.0.1", port: int = 8000
+    predictor: Union[DivePredictor, Any], host: str = "127.0.0.1", port: int = 8000
 ) -> None:
     """Launch HTTP server serving the predictor (FastAPI+Uvicorn if available, else built-in HTTP server)."""
+    if (hasattr(predictor, "task_type") and str(predictor.task_type).startswith("text_")) or (
+        hasattr(predictor, "pipeline") and hasattr(predictor, "text_column")
+    ):
+        from dive.nlp.serving import serve_nlp_model
+        return serve_nlp_model(predictor, host=host, port=port)
+
     if is_available("uvicorn") and is_available("fastapi"):
         uvicorn = load_optional("uvicorn")
         app = create_serving_app(predictor, host=host, port=port)

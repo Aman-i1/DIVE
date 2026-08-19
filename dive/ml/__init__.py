@@ -1,21 +1,11 @@
-"""dive - automated machine learning for tabular data, from the terminal.
+"""DIVE ML - Tabular Machine Learning Capability Domain.
 
-Public API::
-
-    from dive import Dive, quick_dive
-
-    dive = Dive(target="diagnosis", mode="fast")
-    dive.fit(dataframe)
-    predictions = dive.predict(new_dataframe)
-
-The command-line entry point is :func:`dive.cli.main`, installed as ``dive``.
+Provides automated machine learning, data intelligence, validation,
+calibrated ensembling, and MLOps for structured and tabular data.
 """
 
 from __future__ import annotations
 
-__version__ = "0.1.0"
-
-from dive import ml, nlp
 from dive.advisor import ModelAdvisor, ValidationAdvisor
 from dive.adversarial_validation import (
     AdversarialValidationReport,
@@ -26,6 +16,7 @@ from dive.audit import AuditCertificate, ComplianceAuditor
 from dive.autopilot import AutopilotOrchestrator, AutopilotResult
 from dive.batch_inference import BatchInferenceEngine, BatchInferenceStats
 from dive.calibration import ProbabilityCalibrator
+from dive.capability_registry import CapabilityRegistry, ModelCapability
 from dive.champion_challenger import (
     ChampionChallengerEvaluator,
     PromotionVerdict,
@@ -42,31 +33,11 @@ from dive.data_quality import (
 from dive.decisions import DecisionLogger, DecisionRecord
 from dive.doctor import DiveDoctor, ProductionReadinessScore
 from dive.drift import DriftDetector
-from dive.failure_segments import (
-    FailureSegment,
-    FailureSegmentAnalyzer,
-    FailureSegmentsReport,
-)
-from dive.model_stress import ModelStressTester, StressTestReport
-from dive.observability import (
-    DriftMetricResult,
-    ObservabilityEngine,
-    ObservabilityReport,
-)
-from dive.lineage import LineageGraph, LineageNode
-from dive.prediction_contract import (
-    PredictionContract,
-    PredictionContractEngine,
-)
-from dive.reproducibility import (
-    ReproducibilityBundleExporter,
-    ReproducibilityBundleMetadata,
-)
-from dive.senior_review import SeniorReviewEngine, SeniorReviewReport
+from dive.ensemble_diversity import DiversityMatrix, ModelDiversityEvaluator
 from dive.exceptions import (
-    DiveError,
     ConfigError,
     DataError,
+    DiveError,
     ModelError,
     SchemaError,
     TargetError,
@@ -76,29 +47,47 @@ from dive.exceptions import (
 from dive.experiments import ExperimentTracker
 from dive.explainability import ExplainabilityEngine
 from dive.failure_analysis import ModelFailureAnalyzer
-from dive.gate import DeploymentGate, GateVerdict
-from dive.info import DatasetInspector, DatasetInfoReport
-from dive.leakage import AdvancedLeakageDetector
-from dive.capability_registry import CapabilityRegistry, ModelCapability
+from dive.failure_segments import (
+    FailureSegment,
+    FailureSegmentAnalyzer,
+    FailureSegmentsReport,
+)
 from dive.feature_availability import FeatureAvailabilityModel, FeatureMetadata
+from dive.feature_engineering import FeatureEngineer
 from dive.feature_selection import FeaturePruner
+from dive.gate import DeploymentGate, GateVerdict
+from dive.inference_router import DynamicInferenceRouter, RoutedPredictionResult
+from dive.info import DatasetInfoReport, DatasetInspector
+from dive.leakage import AdvancedLeakageDetector
+from dive.lineage import LineageGraph, LineageNode
 from dive.meta_learning import (
     DatasetFingerprint,
     MetaLearningEngine,
     MetaWarmStartPriors,
 )
-from dive.ensemble_diversity import DiversityMatrix, ModelDiversityEvaluator
-from dive.feature_engineering import FeatureEngineer
-from dive.inference_router import DynamicInferenceRouter, RoutedPredictionResult
+from dive.model_stress import ModelStressTester, StressTestReport
 from dive.model_zoo import ModelZoo
+from dive.observability import (
+    DriftMetricResult,
+    ObservabilityEngine,
+    ObservabilityReport,
+)
 from dive.onnx_export import ONNXExporter
-from dive.ood_detector import OODDetector, OODResult
 from dive.orchestration import StudyConfig, StudyOrchestrator
+from dive.prediction_contract import (
+    PredictionContract,
+    PredictionContractEngine,
+)
 from dive.predictor import DivePredictor, load_predictor
 from dive.registry import ModelRegistry, PromotionGate
 from dive.resources import ResourceManager
+from dive.reproducibility import (
+    ReproducibilityBundleExporter,
+    ReproducibilityBundleMetadata,
+)
 from dive.search_scheduler import ASHASearchScheduler, Rung, Trial
 from dive.security import SecurityAuditResult, SecurityAuditor
+from dive.senior_review import SeniorReviewEngine, SeniorReviewReport
 from dive.stacking_calibrated import (
     CalibratedStackingEnsemble,
     EnsembleWeightsResult,
@@ -110,6 +99,7 @@ from dive.trust import (
     TrustEngine,
     TrustReport,
 )
+from dive.tuning import OptunaOptimizer
 from dive.uncertainty import (
     ConformalIntervalResult,
     ConformalPredictor,
@@ -123,9 +113,6 @@ from dive.validation_engine import (
 )
 
 __all__ = [
-    "__version__",
-    "ml",
-    "nlp",
     "Dive",
     "DataIntelligence",
     "DatasetInspector",
@@ -135,7 +122,6 @@ __all__ = [
     "ValidationAdvisor",
     "ModelAdvisor",
     "AdvancedLeakageDetector",
-    "ResourceManager",
     "ModelFailureAnalyzer",
     "ProbabilityCalibrator",
     "ExplainabilityEngine",
@@ -170,6 +156,7 @@ __all__ = [
     "FeaturePruner",
     "ModelCapability",
     "CapabilityRegistry",
+    "ResourceManager",
     "ASHASearchScheduler",
     "Trial",
     "Rung",
@@ -180,8 +167,6 @@ __all__ = [
     "ConformalIntervalResult",
     "ConformalSetResult",
     "UncertaintyDecomposition",
-    "OODDetector",
-    "OODResult",
     "TrustEngine",
     "TrustReport",
     "PerturbationRobustnessResult",
@@ -233,6 +218,3 @@ __all__ = [
     "TrainingError",
     "ValidationError",
 ]
-
-
-
