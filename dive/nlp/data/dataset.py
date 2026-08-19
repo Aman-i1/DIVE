@@ -233,6 +233,12 @@ class NLPDataset:
                     f"Available columns: {', '.join(map(str, frame.columns[:20]))}",
                 )
             labels = frame[target_column].tolist()
+        else:
+            # Autonomous target column resolution
+            target_col_candidate = cls.detect_target_column(frame, text_column=text_column)
+            if target_col_candidate is not None and target_col_candidate in frame.columns:
+                target_column = target_col_candidate
+                labels = frame[target_column].tolist()
 
         # 4. Resolve sample IDs
         sample_ids = None
@@ -287,6 +293,18 @@ class NLPDataset:
         """Load and construct an NLPDataset from any supported file format (CSV, JSON, JSONL, Parquet)."""
         path = resolve_path(file_path, must_exist=True)
         df = load_dataframe(str(path))
+
+        # Check if file has no header row (first header is a full sentence or multi-word text)
+        col_names = [str(c) for c in df.columns]
+        first_col_is_long = len(col_names) > 0 and (len(col_names[0]) > 25 or len(col_names[0].split()) > 3)
+        if first_col_is_long:
+            first_row = pd.DataFrame([df.columns.values], columns=df.columns)
+            df = pd.concat([first_row, df], ignore_index=True)
+            if len(df.columns) == 2:
+                df.columns = ["text", "label"]
+            else:
+                df.columns = [f"col_{i}" for i in range(len(df.columns))]
+
         return cls.from_dataframe(
             df=df,
             text_column=text_column,
@@ -379,6 +397,41 @@ class NLPDataset:
         # Sort candidates by score descending
         candidates.sort(key=lambda x: x[1], reverse=True)
         return candidates[0][0]
+
+    @staticmethod
+    def detect_target_column(
+        df: pd.DataFrame, text_column: Optional[str] = None
+    ) -> Optional[str]:
+        """Autonomously detect target label column in a DataFrame."""
+        if len(df.columns) < 2:
+            return None
+
+        text_col = text_column
+        remaining_cols = [str(c) for c in df.columns if text_col is None or str(c) != str(text_col)]
+        if not remaining_cols:
+            return None
+
+        # 1. Exact common target names (case-insensitive)
+        known_target_names = {
+            "label", "target", "sentiment", "class", "category", "rating",
+            "y", "tag", "intent", "spam", "polarity", "topic", "is_spam",
+            "v1", "col_1", "1", "score"
+        }
+        for col in remaining_cols:
+            if col.lower().strip() in known_target_names:
+                return col
+
+        # 2. If exactly 2 columns, the other column is the target column
+        if len(df.columns) == 2:
+            return remaining_cols[0]
+
+        # 3. Look for low cardinality or categorical column
+        for col in remaining_cols:
+            nunique = df[col].nunique()
+            if 1 < nunique <= 50 and nunique < (0.2 * len(df)):
+                return col
+
+        return remaining_cols[0]
 
     # ------------------------------------------------------------------
     # Splitting & Serialization
