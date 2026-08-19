@@ -76,7 +76,16 @@ class NLPDataset:
                     f"Length mismatch: {n_samples} texts but {len(labels)} labels.",
                     "Ensure labels array has exactly one element per text document.",
                 )
-            self._labels: Optional[List[Any]] = list(labels)
+            # Ensure label types are homogeneous (prevent mixed int/str)
+            s_labels = pd.Series(list(labels))
+            s_num = pd.to_numeric(s_labels, errors="coerce")
+            if s_num.notna().all():
+                if (s_num % 1 == 0).all():
+                    self._labels: Optional[List[Any]] = s_num.astype(int).tolist()
+                else:
+                    self._labels: Optional[List[Any]] = s_num.astype(float).tolist()
+            else:
+                self._labels: Optional[List[Any]] = s_labels.astype(str).tolist()
         else:
             self._labels = None
 

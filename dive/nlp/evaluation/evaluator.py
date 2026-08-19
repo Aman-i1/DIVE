@@ -12,6 +12,7 @@ import warnings
 from typing import Any, Dict, List, Optional, Sequence, Union
 
 import numpy as np
+import pandas as pd
 from sklearn.metrics import (
     accuracy_score,
     balanced_accuracy_score,
@@ -53,6 +54,18 @@ class NLPEvaluator:
     ) -> Dict[str, Any]:
         y_t = np.asarray(y_true)
         y_p = np.asarray(y_pred)
+
+        # Unify dtypes if mixed (e.g. integer labels vs string predictions or vice-versa)
+        if y_t.dtype != y_p.dtype:
+            # Check if numeric
+            t_num = pd.to_numeric(pd.Series(y_t), errors="coerce")
+            p_num = pd.to_numeric(pd.Series(y_p), errors="coerce")
+            if t_num.notna().all() and p_num.notna().all():
+                y_t = t_num.values
+                y_p = p_num.values
+            else:
+                y_t = y_t.astype(str)
+                y_p = y_p.astype(str)
 
         acc = float(accuracy_score(y_t, y_p))
         macro_f1 = float(f1_score(y_t, y_p, average="macro", zero_division=0))
