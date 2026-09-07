@@ -60,15 +60,42 @@ dive dl train ./data/audio  -m audio -t classification         # 160-dim log-mel
 
 ## Quickstart
 
-### Installation
+## Installation & Multi-OS Setup
 
+> For detailed OS-specific setup (Linux, macOS Apple Silicon/Intel, Windows WSL2/PowerShell, and Docker), see the [**Complete Multi-OS Installation Guide**](docs/INSTALLATION.md).
+
+### 1. Quick Install directly from GitHub (All OS)
 ```bash
-# Install core package
-pip install -e .
+# Core Tabular AutoML & Reliability
+pip install git+https://github.com/Aman-i1/DIVE.git
 
-# Or with optional extras:
-pip install ".[nlp,serving]"
+# Core + NLP & FastAPI Serving Extras
+pip install "dive-ml[nlp,serving] @ git+https://github.com/Aman-i1/DIVE.git"
+
+# Full Suite (All 5 Modalities + Boosters + Deep Learning)
+pip install "dive-ml[full] @ git+https://github.com/Aman-i1/DIVE.git"
 ```
+
+### 2. Install from Local Clone
+```bash
+git clone https://github.com/Aman-i1/DIVE.git
+cd DIVE
+
+# On Linux / macOS:
+python3 -m venv .venv && source .venv/bin/activate
+pip install -e ".[nlp,serving]"
+
+# On Windows (PowerShell):
+python -m venv .venv; .\.venv\Scripts\Activate.ps1
+pip install -e ".[nlp,serving]"
+```
+
+Verify your setup:
+```bash
+dive --version
+dive deps
+```
+
 
 ### Tabular Workflow
 ```bash
