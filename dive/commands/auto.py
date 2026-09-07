@@ -16,11 +16,11 @@ from typing import Optional
 import click
 import pandas as pd
 
+from dive.commands._context import console_from
 from dive.config import DiveConfig
 from dive.orchestration import StudyConfig, StudyOrchestrator
 from dive.reproducibility import ReproducibilityBundleExporter
 from dive.study import create_study
-from dive.utils.logging import Console, get_console
 
 
 @click.command(name="auto", help="Execute end-to-end autonomous AutoML workflow across all 20 domain engines.")
@@ -36,7 +36,9 @@ from dive.utils.logging import Console, get_console
 @click.option("--budget", "-b", default="300s", help="Time budget (e.g. '30s', '10m', '1h').")
 @click.option("--output", "-o", default="./dive_output", help="Output directory for artifacts & bundles.")
 @click.option("--config", "-c", "config_file", type=click.Path(exists=True), help="Optional path to dive.yaml / dive.json.")
+@click.pass_context
 def auto_command(
+    ctx: click.Context,
     data_path: str,
     target: Optional[str],
     mode: str,
@@ -45,7 +47,7 @@ def auto_command(
     config_file: Optional[str],
 ) -> None:
     """Run full industrial autonomous AutoML workflow."""
-    console = get_console()
+    console = console_from(ctx)
     out_dir = Path(output)
     out_dir.mkdir(parents=True, exist_ok=True)
 

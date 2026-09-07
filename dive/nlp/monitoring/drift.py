@@ -16,6 +16,8 @@ from typing import Any, Dict, List, Optional, Sequence, Set, Tuple, Union
 import numpy as np
 from scipy import stats
 
+from dive.utils.report import PASS, WARN, ReportBuilder
+
 
 _WORD_TOKEN_PATTERN = re.compile(r"(?u)\b\w+\b")
 
@@ -45,63 +47,61 @@ class NLPDriftReport:
         }
 
     def render(self) -> str:
-        """Render formatted ASCII diagnostic report."""
-        status_str = "DRIFT DETECTED" if self.drift_detected else "STABLE (NO DRIFT)"
-        lines = [
-            "=" * 85,
-            "                      DIVE NLP DRIFT & MONITORING REPORT                      ",
-            "=" * 85,
-            f"Status                   : {status_str}",
-            f"Reference Sample Size    : {self.reference_samples}",
-            f"Current Sample Size      : {self.current_samples}",
-            "-" * 85,
-            "1. DOCUMENT LENGTH DRIFT",
-        ]
+        """Render the drift audit through the shared platform renderer."""
+        builder = ReportBuilder("DIVE NLP DRIFT & MONITORING REPORT")
+        builder.status(
+            WARN if self.drift_detected else PASS,
+            "DRIFT DETECTED" if self.drift_detected else "STABLE (NO DRIFT)",
+        )
+        builder.kv("Reference Sample Size", self.reference_samples)
+        builder.kv("Current Sample Size", self.current_samples)
 
-        # Length drift metrics
+        builder.section("DOCUMENT LENGTH DRIFT")
         tok_stat = self.length_drift.get("token_length", {})
-        lines.append(
-            f"  - Token Length KS p-val: {tok_stat.get('p_value', 1.0):.4f} "
-            f"(Wasserstein Dist: {tok_stat.get('wasserstein_dist', 0.0):.2f}, Shift: {tok_stat.get('drift_detected', False)})"
+        spread = builder.console.symbol("plus_minus")
+        builder.kv(
+            "Token Length KS p-val",
+            f"{tok_stat.get('p_value', 1.0):.4f} "
+            f"(Wasserstein Dist: {tok_stat.get('wasserstein_dist', 0.0):.2f}, "
+            f"Shift: {tok_stat.get('drift_detected', False)})",
         )
-        lines.append(
-            f"  - Ref Avg Tokens       : {tok_stat.get('ref_mean', 0.0):.1f} ± {tok_stat.get('ref_std', 0.0):.1f} | "
-            f"Curr Avg Tokens: {tok_stat.get('curr_mean', 0.0):.1f} ± {tok_stat.get('curr_std', 0.0):.1f}"
+        builder.kv(
+            "Ref Avg Tokens",
+            f"{tok_stat.get('ref_mean', 0.0):.1f} {spread} {tok_stat.get('ref_std', 0.0):.1f}",
+        )
+        builder.kv(
+            "Curr Avg Tokens",
+            f"{tok_stat.get('curr_mean', 0.0):.1f} {spread} {tok_stat.get('curr_std', 0.0):.1f}",
         )
 
-        # Vocabulary drift
-        lines.append("-" * 85)
-        lines.append("2. VOCABULARY & OOV SHIFT")
+        builder.section("VOCABULARY & OOV SHIFT")
         voc = self.vocabulary_drift
-        lines.append(f"  - Ref Vocab Size       : {voc.get('ref_vocab_size', 0)}")
-        lines.append(f"  - Curr Vocab Size      : {voc.get('curr_vocab_size', 0)}")
-        lines.append(
-            f"  - Out-of-Vocab (OOV)   : {voc.get('oov_tokens_count', 0)} tokens "
-            f"(Rate: {voc.get('oov_rate', 0.0):.2%}, Drift: {voc.get('drift_detected', False)})"
+        builder.kv("Ref Vocab Size", voc.get("ref_vocab_size", 0))
+        builder.kv("Curr Vocab Size", voc.get("curr_vocab_size", 0))
+        builder.kv(
+            "Out-of-Vocab (OOV)",
+            f"{voc.get('oov_tokens_count', 0)} tokens "
+            f"(Rate: {voc.get('oov_rate', 0.0):.2%}, Drift: {voc.get('drift_detected', False)})",
         )
         top_emergent = voc.get("top_emergent_words", [])
         if top_emergent:
-            lines.append(f"  - Top Emergent Words   : {', '.join(top_emergent[:8])}")
+            builder.kv("Top Emergent Words", ", ".join(top_emergent[:8]))
 
-        # Prediction drift
         if self.prediction_drift:
-            lines.append("-" * 85)
-            lines.append("3. PREDICTION DISTRIBUTION SHIFT")
-            pd_stat = self.prediction_drift
-            lines.append(
-                f"  - Population Stability : PSI = {pd_stat.get('psi', 0.0):.4f} "
-                f"({pd_stat.get('shift_level', 'None')}, Drift: {pd_stat.get('drift_detected', False)})"
+            builder.section("PREDICTION DISTRIBUTION SHIFT")
+            builder.kv(
+                "Population Stability",
+                f"PSI = {self.prediction_drift.get('psi', 0.0):.4f} "
+                f"({self.prediction_drift.get('shift_level', 'None')}, "
+                f"Drift: {self.prediction_drift.get('drift_detected', False)})",
             )
 
-        # Alerts
         if self.alerts:
-            lines.append("-" * 85)
-            lines.append("4. ACTIONABLE ALERTS")
+            builder.section("ACTIONABLE ALERTS")
             for alert in self.alerts:
-                lines.append(f"  [!] {alert}")
+                builder.status(WARN, alert)
 
-        lines.append("=" * 85)
-        return "\n".join(lines)
+        return builder.build()
 
 
 class NLPDriftMonitor:

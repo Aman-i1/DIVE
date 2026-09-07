@@ -59,6 +59,7 @@ class AutoNLP:
         if task_type in ("text_regression", "regression"):
             candidates = [
                 ("tfidf", "RidgeRegression"),
+                ("lsa", "RidgeRegression"),
                 ("char_ngrams", "RidgeRegression"),
                 ("word_char_union", "RidgeRegression"),
                 ("bm25", "RidgeRegression"),
@@ -70,6 +71,8 @@ class AutoNLP:
         # Classification candidate search space
         candidates = [
             ("tfidf", "LogisticRegression"),
+            ("lsa", "LogisticRegression"),
+            ("lsa", "LinearSVC"),
             ("tfidf", "LinearSVC"),
             ("tfidf", "MultinomialNB"),
             ("char_ngrams", "LogisticRegression"),

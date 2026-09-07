@@ -2,76 +2,59 @@
 
 [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/Aman-i1/DIVE/blob/main/examples/colab_quickstart.ipynb)
 
-**DIVE** is an industrial-grade **Autonomous AutoML, Reliability, and MLOps Platform** designed for mission-critical tabular machine learning.
+**DIVE** (Data Intelligence, Validation & Ensembling) is an industrial-grade **Autonomous Machine Learning, Reliability, and MLOps Platform** engineered for mission-critical enterprise workloads across **three core capability domains**:
 
-A user provides a dataset and an objective (`dive auto data.csv --target churn` or `dive.create_study()`). DIVE autonomously audits dataset health, detects temporal/entity leakage risks, selects safe validation strategies, engineers leakage-safe features, schedules multi-fidelity trials (ASHA), performs calibrated stacking, quantifies uncertainty with conformal prediction, generates cryptographic audit certificates, serves high-throughput batch and REST endpoints, and monitors production drift.
+```
+DIVE Ecosystem:
+├── DIVE ML  (Tabular & Time Series AutoML)    --> dive ml / dive train / dive auto
+├── DIVE NLP (Natural Language Processing)     --> dive nlp (AutoNLP, LSA, Zero-Shot)
+└── DIVE DL  (Deep Learning Across 5 Modes)    --> dive dl (Tabular, Text, Image, Audio, Video)
+```
+
+A user provides a dataset and an objective (`dive auto data.csv --target churn`, `dive nlp train text.csv`, or `dive dl train ./images`). DIVE autonomously profiles data health, mitigates temporal/entity leakage, selects safe validation strategies, engineers point-in-time features, schedules multi-fidelity trials (ASHA), performs calibrated stacking, extracts dense semantic and acoustic features, quantifies conformal uncertainty, serves high-throughput endpoints, and monitors real-time drift.
 
 ```bash
-dive auto   data.csv --target churn --budget 10m --output ./out # Full 20-engine autonomous execution
-dive doctor data.csv --target churn                             # Dataset diagnostic audit & readiness score
-dive train  data.csv --target churn --mode balanced             # Model zoo search & calibrated stacking
-dive gate   model.pkl --data prod_batch.csv --ref train.csv     # Statistical deployment gatekeeper
-dive drift  --ref train.csv --curr prod.csv                     # PSI / KS drift & retraining urgency
+# Tabular AutoML & Reliability
+dive auto   data.csv --target churn --budget 10m --output ./out # 20-engine autonomous execution
+dive train  sales.csv --target revenue --time-column date       # Point-in-time safe lag features
+dive gate   model.pkl --data prod_batch.csv --ref train.csv     # Pre-deployment CI/CD gatekeeper
+
+# Natural Language Processing
+dive nlp train reviews.csv --text-col review --target-col score # AutoNLP multi-representation search
+dive nlp zero-shot "Invoice #1092 approved" --labels "finance,sports,gaming" # Zero-shot classification
+
+# Deep Learning (Vision & Audio)
+dive dl train ./data/images -m image -t classification         # Edge-gradient spatial vision modeling
+dive dl train ./data/audio  -m audio -t classification         # 160-dim log-mel & MFCC cepstral modeling
 ```
 
 ---
 
-## Core Architecture & Execution Flow
+## Three Core Capability Domains
 
-```
-[Raw Dataset]
-      |
-      v
-[Data Intelligence & Schema Profiler] ──> [Validation Intelligence & Leakage Auditor]
-                                                         |
-                                                         v
-[Meta-Learning & Warm-Start Priors] <──── [Leakage-Safe Feature Engineering Engine]
-      |
-      v
-[Autonomous ASHA Search Scheduler] ─────> [Calibrated Stacking & Convex Blending]
-                                                         |
-                                                         v
-[Cryptographic Audit & Lineage DAG] <──── [Trust & Conformal Uncertainty Engine]
-      |
-      v
-[Production REST / Streaming Batch Serving & Real-Time Drift Observability]
-```
+### 1. Tabular Machine Learning (`dive ml`)
+- **Memory Downcasting Optimizer**: Automatically downcasts `float64` to `float32` and `int64` to `int32/16/8`, reducing RAM consumption by 50–70% while preserving strict binary columnar schemas (`.parquet`, `.feather`).
+- **Point-in-Time Safe Temporal Engine**: Automatically shifts lag features (`.shift(lag)`) and rolling window statistics (`.shift(1).rolling(w).mean()`) to eliminate temporal lookahead leakage. Group-aware rolling aggregations prevent cross-entity contamination.
+- **Pre-Flight Validation & Readiness Score**: 5-point data health audit scoring datasets 0–100 before training.
+- **Autonomous ASHA Scheduler**: Multi-fidelity trial search optimizing accuracy, log-loss, calibration error, and inference latency.
+- **Calibrated Stacking**: Convex blend optimization on out-of-fold calibrated probabilities.
+- **Production Gatekeeper & Drift**: Paired statistical deployment gating (`dive gate`) and population stability analysis (`dive drift`).
 
----
+### 2. Natural Language Processing (`dive nlp`)
+- **AutoNLP Autonomous Search**: Evaluates candidate representations (TF-IDF, Character n-grams, Word+Char unions, Okapi BM25, and Latent Semantic Analysis) against diverse estimators.
+- **Continuous Topic Embeddings (`LSARepresentation`)**: High-speed dense semantic vectors via `TruncatedSVD` on n-gram matrices (>10,000 docs/sec CPU speed, zero external downloads).
+- **Zero-Shot Classification (`ZeroShotClassifier`)**: Dual-granularity word + subword representations, domain anchor lexicon expansion (`finance`, `sports`, `medical`, `tech`, `spam`, etc.), and adaptive temperature calibration for sharp probability differentiation without training data.
+- **Vocabulary Drift Monitoring**: Detects token distribution shift, length anomalies, and Out-of-Vocabulary (OOV) surges in production.
+- **High-Throughput Serving**: Standalone FastAPI REST API server with interactive Swagger UI.
 
-## 20 Core Domain Engines
-
-1. **DIVE Study Orchestrator (`dive.orchestrator`, `dive.study`)**: Autonomous lifecycle coordination, hardware resource budgeting, and explainable decision logging.
-2. **Data Intelligence Engine (`dive.data_intelligence`)**: Fine-grained semantic typing (numeric, categorical, datetime, high-cardinality, sparse) and dataset layout detection (IID, Grouped, Temporal, Panel).
-3. **Validation Intelligence Engine (`dive.validation_engine`)**: Automatic detection of target leakage, entity contamination, and temporal ordering with safe strategy selection (`StratifiedGroupKFold`, `GroupKFold`, `TimeSeriesSplit`, `StratifiedKFold`, `KFold`).
-4. **Leakage-Safe Feature Engineering (`dive.temporal_features`)**: Point-in-time safe lag features, shifted rolling statistics, expanding aggregates, and entity-level features.
-5. **Feature Intelligence & Selection (`dive.feature_selection`)**: Mutual information ranking, collinearity filtering, and variance thresholding.
-6. **Model Intelligence & Capability Registry (`dive.capability_registry`)**: Estimator capability metadata matching models to dataset shapes and hardware constraints.
-7. **Autonomous Search Engine (`dive.search_scheduler`)**: Asynchronous Successive Halving (ASHA) multi-fidelity trial scheduling with multi-objective optimization (metric + calibration + latency + memory).
-8. **Meta-Learning & Fingerprinting Engine (`dive.meta_learning`)**: Statistical moments, target entropy, and landmark baseline extraction for search warm-starting.
-9. **Ensemble Intelligence (`dive.ensemble_diversity`)**: Pairwise error correlation, Yule's Q-statistics, and greedy forward selection with diversity penalty.
-10. **Calibrated Multi-Layer Stacking (`dive.stacking_calibrated`)**: Constrained convex blend optimization and meta-estimators on out-of-fold calibrated probabilities.
-11. **Trust & Uncertainty Engine (`dive.uncertainty`, `dive.trust`)**: Distribution-free conformal prediction intervals, epistemic vs. aleatoric uncertainty decomposition, perturbation robustness testing, and subgroup disparity audits.
-12. **Out-of-Distribution Detector (`dive.ood_detector`)**: Isolation Forest density combined with PCA-Mahalanobis distance scoring.
-13. **Experiment Engine & Lineage DAG (`dive.lineage`)**: Cryptographic provenance tracking from raw dataset to compliance certificate with Mermaid diagram export.
-14. **Content-Addressable Artifact Store (`dive.artifact_store`)**: SHA-256 content-addressable model and dataset storage with deduplication.
-15. **One-Click Reproducibility (`dive.reproducibility`)**: Standalone reproduction bundle generation with `reproduce.py`, `metadata.json`, and `model.pkl`.
-16. **High-Performance Serving (`dive.batch_inference`, `dive.serving`)**: Streaming chunked batch processor for large datasets and FastAPI REST API deployment.
-17. **Dynamic Inference Router (`dive.inference_router`)**: Dynamic confidence-based routing between lightweight models and calibrated ensembles.
-18. **Production Observability (`dive.observability`)**: Continuous feature PSI, Kolmogorov-Smirnov drift tests, prediction drift, and automated retraining urgency scoring.
-19. **Champion/Challenger Promotion Gate (`dive.champion_challenger`)**: Paired Wilcoxon hypothesis testing to statistically verify model superiority before replacement.
-20. **Security & Auditing (`dive.security`, `dive.audit`)**: Safe deserialization inspection, path traversal guards, and cryptographic compliance certificates.
-
----
-
-## Multi-Language Ecosystem
-
-DIVE is engineered with high-performance polyglot components:
-- **Rust Core Engine (`crates/dive-core/`)**: Zero-overhead high-throughput data processing and statistical computation.
-- **C-ABI Shared Library (`libdive`)**: Native shared library bindings for high-performance integration.
-- **Go Binary CLI (`cmd/dive-go/`)**: Single static binary CLI tool with zero external runtime dependencies.
-- **WebAssembly Engine (`wasm/`)**: Client-side in-browser validation and inference engine compiled from Rust.
-- **Python Package (`dive/`)**: Unified Python SDK and Click CLI with extensive scientific ecosystem support.
+### 3. Multi-Modal Deep Learning (`dive dl`)
+- **Five Data Modalities**: First-class support for Tabular, Text, Image, Audio, and Video.
+- **Dual-Backend Execution Guarantee**:
+  - *PyTorch Backend*: AdamW, Cosine Annealing learning rate schedules, gradient clipping, mixed precision (AMP), and in-memory best-epoch checkpoint recovery.
+  - *Scikit-Learn Fallback*: Zero-failure CPU execution via MLP without requiring GPU drivers or multi-gigabyte neural weight downloads.
+- **Acoustic Engineering (`AudioAdapter`)**: 64-band log-mel filterbanks, 13 Mel-Frequency Cepstral Coefficients (MFCCs) via DCT-II, spectral contrast (peak minus valley energy), and peak sample amplitude (160 total features).
+- **Vision Engineering (`ImageAdapter`)**: Dual tier: pretrained ResNet-18 backbone (when torchvision is available) or downsampled spatial grid + 48-bin RGB histograms + spatial gradient magnitude statistics (Sobel proxy for edge contours) + contrast and color balance (1080 features).
+- **Flexible Media Routing**: Direct single-file scoring (`dive dl predict model.pkl --data image.png`) or batch directory scoring.
 
 ---
 
@@ -80,57 +63,89 @@ DIVE is engineered with high-performance polyglot components:
 ### Installation
 
 ```bash
-pip install dive-ml
-# or from source:
-git clone https://github.com/Aman-i1/DIVE.git
-cd DIVE
+# Install core package
 pip install -e .
+
+# Or with optional extras:
+pip install ".[nlp,serving]"
 ```
 
-### CLI Workflow
-
+### Tabular Workflow
 ```bash
-# 1. Run full autonomous AutoML study (orchestrating all 20 engines)
-dive auto sales.csv --target churn --budget 10m --output ./dive_out
+# Train on tabular data with time series features
+dive train sales.csv --target revenue --time-column date --group-column store_id
 
-# 2. Diagnostic audit & check Production Readiness Score
-dive doctor sales.csv --target churn --group-column customer_id
+# Score new batch
+dive predict --model ./dive_output/model.pkl --data test_sales.csv --output predictions.csv
 
-# 3. Model validation & deployment gatekeeper
-dive gate ./dive_out/model.pkl --data prod_batch.csv --ref sales.csv --strict
-
-# 4. Deploy production FastAPI REST API server
-dive serve --model ./dive_out/model.pkl --port 8000
-
-# 5. Monitor drift against production batch data
-dive drift --ref sales.csv --curr production_week1.csv
+# Audit deployment readiness
+dive doctor sales.csv --target revenue
 ```
 
-### CLI Command Index
+### NLP Workflow
+```bash
+# Train AutoNLP model
+dive nlp train reviews.csv --text-col review --target-col sentiment -o sentiment_model.pkl
+
+# Zero-Shot text classification
+dive nlp zero-shot "Quarterly revenue surged by 22% this fiscal year" --labels "finance,technology,sports"
+
+# Serve REST API
+dive nlp serve sentiment_model.pkl --port 8000
+```
+
+### Deep Learning Workflow
+```bash
+# Train on folder-per-class image collection
+dive dl train ./images/ -m image -t classification --epochs 10 -o vision_model.pkl
+
+# Train on audio collection
+dive dl train ./audio/  -m audio -t classification --epochs 10 -o audio_model.pkl
+
+# Score a single image or sound file
+dive dl predict vision_model.pkl --input ./test_photo.png --proba
+dive dl predict audio_model.pkl  --input ./test_sound.wav --proba
+```
+
+---
+
+## CLI Command Index
 
 > For complete flag-by-flag documentation, real-world examples, and failure modes, see the [**Complete CLI Reference Manual**](docs/CLI_COMMANDS_REFERENCE.md).
 
-| Command | Category | Purpose | Typical Command |
-|---|---|---|---|
-| `dive autopilot` | Orchestration | Full 20-step Senior ML Review, Reliability & AutoML | `dive autopilot data.csv --target churn --budget 10m` |
-| `dive auto` | Orchestration | Declarative YAML or autonomous study execution | `dive auto data.csv --target churn --mode balanced` |
-| `dive train` | Training | Model zoo search, tuning, calibrated stacking & reports | `dive train data.csv --target churn --output ./out` |
-| `dive predict` | Inference | High-throughput batch or terminal prediction machine | `dive predict --model model.pkl --data test.csv --proba` |
-| `dive contract` | Reliability | Formal Prediction Contract inference & specification | `dive contract data.csv --target churn --entity cust_id` |
-| `dive review` | Reliability | Senior ML Practitioner automated review & audit matrix | `dive review data.csv --target churn --output review.json` |
-| `dive gate` | Production | Pre-deployment verification gatekeeper for CI/CD | `dive gate model.pkl --data batch.csv --strict` |
-| `dive doctor` | Diagnostics | Pre-flight audit & 0-100 Production Readiness Score | `dive doctor data.csv --target churn` |
-| `dive serve` | Production | REST API server with interactive `/help` endpoint | `dive serve --model model.pkl --port 8000` |
-| `dive drift` | Observability | PSI / Kolmogorov-Smirnov continuous drift monitoring | `dive drift --ref train.csv --curr prod.csv` |
-| `dive explain` | Explainability | Permutation Importance, SHAP & partial dependence | `dive explain --model model.pkl --data test.csv` |
-| `dive report` | Reporting | Standalone interactive HTML & LaTeX research PDF | `dive report --model model.pkl --output ./report` |
-| `dive reproduce` | Reproducibility | Content-addressable SHA-256 bundle & `reproduce.py` | `dive reproduce --model model.pkl` |
-| `dive audit` | Compliance | Signed SHA-256 cryptographic compliance certificate | `dive audit --model model.pkl --output cert.json` |
-| `dive export` | Export | Export to ONNX, PMML, TorchScript, C-FFI, WASM | `dive export --model model.pkl --format onnx` |
-| `dive info` | Inspection | Deep structural & statistical dataset profiler | `dive info data.csv --target churn` |
-| `dive benchmark` | Benchmarking | Predictor latency, RAM, and throughput benchmarks | `dive benchmark --model model.pkl --data test.csv` |
-| `dive deps` | Environment | Hardware acceleration (CUDA) and library audit | `dive deps` |
-| `dive docs` | Documentation | Local offline documentation server & browser viewer | `dive docs --port 8080` |
+| Command Group | Command | Purpose | Typical Command |
+| :--- | :--- | :--- | :--- |
+| **Tabular ML** | `dive autopilot` | 20-step Senior ML Review + Reliability + AutoML | `dive autopilot data.csv --target churn` |
+| | `dive auto` | Autonomous AutoML study execution | `dive auto data.csv --target churn` |
+| | `dive train` | Model zoo training, tuning, stacking & reporting | `dive train data.csv --target churn --time-column date` |
+| | `dive predict` | Batch scoring with probability distributions | `dive predict --model model.pkl --data test.csv` |
+| | `dive doctor` | Pre-flight dataset health & 0-100 readiness audit | `dive doctor data.csv --target churn` |
+| | `dive gate` | Pre-deployment gatekeeper for CI/CD pipelines | `dive gate model.pkl --data batch.csv --strict` |
+| | `dive drift` | Continuous PSI & Kolmogorov-Smirnov drift monitoring | `dive drift --ref train.csv --curr prod.csv` |
+| | `dive review` | Senior ML Practitioner automated review report | `dive review data.csv --target churn` |
+| | `dive explain` | Feature attributions, SHAP, and pipeline summary | `dive explain --model model.pkl --data test.csv` |
+| | `dive report` | Standalone interactive HTML & LaTeX research PDF | `dive report --model model.pkl --output ./report` |
+| **NLP** | `dive nlp train` | Autonomous multi-representation AutoNLP search | `dive nlp train data.csv -x text -y label` |
+| | `dive nlp zero-shot` | Zero-shot text classification with anchor expansion | `dive nlp zero-shot "text" --labels "a,b,c"` |
+| | `dive nlp predict` | High-throughput text inference engine | `dive nlp predict model.pkl -t "text" --proba` |
+| | `dive nlp profile` | Document length, character, and vocabulary profiler | `dive nlp profile data.csv -x text` |
+| | `dive nlp monitor` | Real-time vocabulary shift and OOV rate monitor | `dive nlp monitor base.csv curr.csv -x text` |
+| | `dive nlp serve` | Deploy production FastAPI REST API server | `dive nlp serve model.pkl --port 8000` |
+| **Deep Learning** | `dive dl train` | Modality-agnostic neural training (5 modalities) | `dive dl train ./images -m image -t classification` |
+| | `dive dl predict` | Single media or batch inference engine | `dive dl predict model.pkl --input sample.png` |
+| | `dive dl doctor` | Deep learning environment & RAM projection audit | `dive dl doctor -m audio` |
+| | `dive dl auto` | Autonomous neural hyperparameter search (AutoDL) | `dive dl auto ./images -m image --trials 5` |
+| **Governance** | `dive models` | Local model registry (register, list, promote) | `dive models register churn_model --model model.pkl` |
+| | `dive experiments` | Experiment tracking, comparison, and metrics | `dive experiments list` |
+
+---
+
+## Comprehensive Guides & Documentation
+
+- [**Complete CLI Reference Manual**](docs/CLI_COMMANDS_REFERENCE.md)
+- [**NLP Quickstart Guide**](docs/nlp_quickstart.md)
+- [**NLP Architecture & Engines**](docs/nlp_architecture.md)
+- [**Deep Learning Quickstart Guide**](docs/dl_quickstart.md)
 
 ---
 

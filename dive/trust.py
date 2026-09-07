@@ -24,6 +24,7 @@ from dive.calibration import ProbabilityCalibrator
 from dive.decisions import DecisionLogger
 from dive.ood_detector import OODDetector
 from dive.uncertainty import ConformalPredictor
+from dive.utils.report import ReportBuilder
 
 
 @dataclass
@@ -70,21 +71,24 @@ class TrustReport:
         }
 
     def render(self) -> str:
-        lines = [
-            "DIVE MODEL TRUST & RELIABILITY AUDIT",
-            "====================================",
-            f"Overall Trust Score : {self.trust_score:.1f}/100 [Grade: {self.trust_grade}]",
-            f"Expected Calib Error: {self.calibration_ece:.4f}",
-            f"Conformal Coverage  : {self.conformal_coverage_pct:.1f}% (Nominal: 95.0%)",
-            f"Noise Robustness    : {self.robustness_retention_pct:.1f}% metric retention",
-            f"Subgroup Disparity  : {self.subgroup_disparity_pct:.1f}% max slice divergence",
-            f"OOD In-Sample Risk  : {self.ood_risk_pct:.1f}%",
-        ]
+        """Render the trust audit through the shared platform renderer."""
+        builder = ReportBuilder("DIVE MODEL TRUST & RELIABILITY AUDIT")
+        builder.bar(
+            "Overall Trust Score",
+            self.trust_score,
+            100.0,
+            suffix=f"{self.trust_score:.1f}/100 (grade {self.trust_grade})",
+        )
+        builder.kv("Expected Calib Error", f"{self.calibration_ece:.4f}")
+        builder.kv("Conformal Coverage", f"{self.conformal_coverage_pct:.1f}% (nominal 95.0%)")
+        builder.kv("Noise Robustness", f"{self.robustness_retention_pct:.1f}% metric retention")
+        builder.kv("Subgroup Disparity", f"{self.subgroup_disparity_pct:.1f}% max slice divergence")
+        builder.kv("OOD In-Sample Risk", f"{self.ood_risk_pct:.1f}%")
+
         if self.recommendations:
-            lines.append("\nTrust Recommendations:")
-            for rec in self.recommendations:
-                lines.append(f"  - {rec}")
-        return "\n".join(lines)
+            builder.section("TRUST RECOMMENDATIONS")
+            builder.bullets(self.recommendations)
+        return builder.build()
 
 
 class TrustEngine:

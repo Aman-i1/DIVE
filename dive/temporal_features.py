@@ -33,6 +33,7 @@ class LeakageSafeTemporalEngine:
         numeric_cols: Optional[List[str]] = None,
         lags: Tuple[int, ...] = (1, 2, 3),
         rolling_windows: Tuple[int, ...] = (3, 7),
+        fillna: bool = False,
     ) -> Tuple[pd.DataFrame, FeatureAvailabilityModel]:
         """Generate point-in-time safe temporal, lag, and entity features."""
         df_out = df.copy()
@@ -51,9 +52,10 @@ class LeakageSafeTemporalEngine:
             for lag in lags:
                 col_name = f"{col}_lag_{lag}"
                 if self.group_column and self.group_column in df_out.columns:
-                    df_out[col_name] = df_out.groupby(self.group_column)[col].shift(lag)
+                    shifted = df_out.groupby(self.group_column)[col].shift(lag)
                 else:
-                    df_out[col_name] = df_out[col].shift(lag)
+                    shifted = df_out[col].shift(lag)
+                df_out[col_name] = shifted.fillna(0.0) if fillna else shifted
 
                 self.availability_model.register(
                     name=col_name,
@@ -82,10 +84,11 @@ class LeakageSafeTemporalEngine:
                     rolled = df_out[col].shift(1).rolling(window, min_periods=1).mean()
                     rolled_std = df_out[col].shift(1).rolling(window, min_periods=1).std()
 
-                df_out[col_mean] = rolled.fillna(0.0)
-                df_out[col_std] = rolled_std.fillna(0.0)
+                df_out[col_mean] = rolled.fillna(0.0) if fillna else rolled
+                df_out[col_std] = rolled_std.fillna(0.0) if fillna else rolled_std
 
                 self.availability_model.register(
+
                     name=col_mean,
                     source_column=col,
                     transformation=f"rolling_mean_{window}",

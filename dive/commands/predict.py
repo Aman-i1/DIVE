@@ -13,6 +13,7 @@ from dive.exceptions import DataError, SchemaError
 from dive.predictor import DivePredictor, SchemaMismatch
 from dive.utils.io import load_dataframe, load_pickle, resolve_path, save_dataframe
 from dive.utils.logging import Console
+from dive.utils.report import ReportBuilder
 
 # Predictions with values beyond this range are almost certainly a schema mix-up.
 _MIN_PLAUSIBLE_ABS = 1e14
@@ -343,13 +344,11 @@ def run_interactive_predict(
         top_prob = float(proba_df.iloc[0].max())
         top_cls = str(proba_df.iloc[0].idxmax())
         console.kv("Top Confidence Score", f"{top_prob * 100:.1f}% ({top_cls})")
-        console.print("")
-        console.print("  Probability Breakdown:")
+        breakdown = ReportBuilder(console=console)
+        breakdown.section("PROBABILITY BREAKDOWN")
         for cls_name, prob_val in proba_df.iloc[0].items():
-            prob_val = float(prob_val)
-            bar_len = int(prob_val * 25)
-            bar_str = "█" * bar_len + "░" * (25 - bar_len)
-            console.print(f"    • {cls_name:<16} : [{bar_str}] {prob_val * 100:.1f}%")
+            breakdown.bar(str(cls_name), float(prob_val), 1.0)
+        console.report(breakdown)
 
     console.print("")
     console.success("Prediction Machine execution complete.")

@@ -16,6 +16,7 @@ import numpy as np
 import pandas as pd
 
 from dive.decisions import DecisionLogger
+from dive.utils.report import ReportBuilder
 
 
 @dataclass
@@ -40,19 +41,21 @@ class ContaminationReport:
         }
 
     def render(self) -> str:
-        lines = [
-            "TRAIN / VALIDATION CONTAMINATION AUDIT",
-            "=====================================",
-            f"Contamination Risk       : [{self.contamination_risk}]",
-            f"Exact Row Duplicates     : {self.exact_duplicates_across_splits:,}",
-            f"Entity Overlap Across CV : {self.entity_overlap_count:,}" + (f" ({self.entity_column})" if self.entity_column else ""),
-            f"Target Label Conflicts   : {self.target_conflict_count:,}",
-        ]
+        """Render the contamination audit through the shared platform renderer."""
+        builder = ReportBuilder("TRAIN / VALIDATION CONTAMINATION AUDIT")
+        builder.status(
+            self.contamination_risk,
+            f"Contamination risk: {self.contamination_risk}",
+        )
+        builder.kv("Exact Row Duplicates", f"{self.exact_duplicates_across_splits:,}")
+        entity_suffix = f" ({self.entity_column})" if self.entity_column else ""
+        builder.kv("Entity Overlap Across CV", f"{self.entity_overlap_count:,}{entity_suffix}")
+        builder.kv("Target Label Conflicts", f"{self.target_conflict_count:,}")
+
         if self.recommendations:
-            lines.append("\nRecommendations:")
-            for rec in self.recommendations:
-                lines.append(f"  - {rec}")
-        return "\n".join(lines)
+            builder.section("RECOMMENDATIONS")
+            builder.bullets(self.recommendations)
+        return builder.build()
 
 
 class ContaminationDetector:

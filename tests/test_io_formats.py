@@ -63,9 +63,30 @@ def test_semicolon_and_pipe_delimiters(frame, tmp_path):
     frame.to_csv(scsv, sep=";", index=False)
     assert list(load_dataframe(scsv).columns) == list(frame.columns)
 
+    pipe_csv = tmp_path / "piped.csv"
+    frame.to_csv(pipe_csv, sep="|", index=False)
+    assert list(load_dataframe(pipe_csv).columns) == list(frame.columns)
+
     psv = tmp_path / "data.psv"
     frame.to_csv(psv, sep="|", index=False)
     assert list(load_dataframe(psv).columns) == list(frame.columns)
+
+
+def test_single_column_csv_survives_failed_sniff(tmp_path):
+    """``csv.Sniffer`` raises on a one-column file; the reader must not.
+
+    A bare text corpus is the common shape here (one ``text`` column), and it is
+    exactly what the sniffer cannot classify - so the loader falls back to a
+    plain comma read instead of failing.
+    """
+    path = tmp_path / "corpus.csv"
+    path.write_text(
+        "text\nfree money now\nmeeting at noon\nclaim your prize\n", encoding="utf-8"
+    )
+    loaded = load_dataframe(path)
+    assert list(loaded.columns) == ["text"]
+    assert len(loaded) == 3
+    assert loaded["text"].iloc[0] == "free money now"
 
 
 def test_compressed_csv(frame, tmp_path):

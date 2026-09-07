@@ -39,10 +39,23 @@ def _train(runner, data_path, out_dir, target="target", extra=None):
 # help / version
 # ----------------------------------------------------------------------
 def test_root_help(runner):
+    """Root help leads with the hierarchy, not a flat wall of commands."""
     result = runner.invoke(cli, ["--help"])
     assert result.exit_code == 0
-    for command in ("train", "predict", "validate", "explain", "report", "docs"):
+
+    assert "Capability Domains" in result.output
+    assert "Platform Utilities" in result.output
+    # Domains and utilities are listed from the section registry in dive/cli.py.
+    for command in ("ml", "nlp", "docs", "deps", "experiments", "models", "upgrade"):
         assert command in result.output
+
+
+def test_flat_commands_stay_invocable(runner):
+    """The pre-hierarchy forms still work; they are aliases, not removals."""
+    for command in ("train", "predict", "validate", "explain", "report", "doctor"):
+        result = runner.invoke(cli, [command, "--help"])
+        assert result.exit_code == 0, f"dive {command} --help failed"
+        assert "Usage:" in result.output
 
 
 def test_version(runner):

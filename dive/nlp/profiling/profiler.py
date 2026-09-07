@@ -21,6 +21,7 @@ import pandas as pd
 from dive.nlp.data.dataset import NLPDataset
 from dive.nlp.exceptions import TextDataError
 from dive.nlp.interfaces import NLPProfilerProtocol
+from dive.utils.report import WARN, ReportBuilder
 
 
 # Simple, fast word tokenization regex (Unicode alphanumeric words)
@@ -69,60 +70,69 @@ class NLPProfileReport:
         }
 
     def render(self) -> str:
-        """Render a clean, human-readable ASCII diagnostic report."""
-        lines = [
-            "=" * 60,
-            f"DIVE NLP DATASET PROFILE REPORT: {self.name.upper()}",
-            "=" * 60,
-            f"Total Documents       : {self.n_samples:,}",
-            f"Empty / Whitespace    : {self.n_empty + self.n_whitespace_only} ({((self.n_empty + self.n_whitespace_only) / max(1, self.n_samples)) * 100:.1f}%)",
-            f"Duplicate Documents   : {self.n_duplicates} ({self.duplicate_ratio * 100:.1f}%)",
-            f"Vocabulary Size       : {self.vocabulary_size:,} unique tokens (TTR: {self.lexical_diversity:.3f})",
-            "",
-            "DOCUMENT LENGTH DISTRIBUTION",
-            "----------------------------",
-            f"Character Count  : min={self.char_stats.get('min', 0):.0f}, p50={self.char_stats.get('p50', 0):.0f}, p95={self.char_stats.get('p95', 0):.0f}, max={self.char_stats.get('max', 0):.0f}, mean={self.char_stats.get('mean', 0):.1f}",
-            f"Token/Word Count : min={self.token_stats.get('min', 0):.0f}, p50={self.token_stats.get('p50', 0):.0f}, p95={self.token_stats.get('p95', 0):.0f}, max={self.token_stats.get('max', 0):.0f}, mean={self.token_stats.get('mean', 0):.1f}",
-        ]
+        """Render the diagnostic report through the shared platform renderer."""
+        builder = ReportBuilder(f"DIVE NLP DATASET PROFILE REPORT: {self.name.upper()}")
+        empty_total = self.n_empty + self.n_whitespace_only
+        empty_pct = (empty_total / max(1, self.n_samples)) * 100
+        builder.kv("Total Documents", f"{self.n_samples:,}")
+        builder.kv("Empty / Whitespace", f"{empty_total} ({empty_pct:.1f}%)")
+        builder.kv("Duplicate Documents", f"{self.n_duplicates} ({self.duplicate_ratio * 100:.1f}%)")
+        builder.kv(
+            "Vocabulary Size",
+            f"{self.vocabulary_size:,} unique tokens (TTR: {self.lexical_diversity:.3f})",
+        )
+
+        builder.section("DOCUMENT LENGTH DISTRIBUTION")
+        builder.table(
+            ["Unit", "min", "p50", "p95", "max", "mean"],
+            [
+                [
+                    "Characters",
+                    f"{self.char_stats.get('min', 0):.0f}",
+                    f"{self.char_stats.get('p50', 0):.0f}",
+                    f"{self.char_stats.get('p95', 0):.0f}",
+                    f"{self.char_stats.get('max', 0):.0f}",
+                    f"{self.char_stats.get('mean', 0):.1f}",
+                ],
+                [
+                    "Tokens/Words",
+                    f"{self.token_stats.get('min', 0):.0f}",
+                    f"{self.token_stats.get('p50', 0):.0f}",
+                    f"{self.token_stats.get('p95', 0):.0f}",
+                    f"{self.token_stats.get('max', 0):.0f}",
+                    f"{self.token_stats.get('mean', 0):.1f}",
+                ],
+            ],
+        )
 
         if self.has_labels and self.label_stats:
-            lines.extend(
-                [
-                    "",
-                    "TARGET LABEL DISTRIBUTION",
-                    "-------------------------",
-                    f"Number of Classes: {self.label_stats.get('n_classes')}",
-                    f"Imbalance Ratio  : {self.label_stats.get('imbalance_ratio', 1.0):.1f}:1 ({'IMBALANCED' if self.label_stats.get('is_imbalanced') else 'BALANCED'})",
-                ]
+            builder.section("TARGET LABEL DISTRIBUTION")
+            is_imbalanced = self.label_stats.get("is_imbalanced")
+            builder.kv("Number of Classes", self.label_stats.get("n_classes"))
+            builder.kv(
+                "Imbalance Ratio",
+                f"{self.label_stats.get('imbalance_ratio', 1.0):.1f}:1 "
+                f"({'IMBALANCED' if is_imbalanced else 'BALANCED'})",
             )
-            for cls_name, count in self.label_stats.get("class_counts", {}).items():
-                pct = (count / max(1, self.n_samples)) * 100
-                lines.append(f"  * {cls_name:<20}: {count:>6,} ({pct:>5.1f}%)")
+            for class_name, count in self.label_stats.get("class_counts", {}).items():
+                builder.bar(
+                    str(class_name),
+                    count,
+                    max(1, self.n_samples),
+                    suffix=f"{count:,} ({(count / max(1, self.n_samples)) * 100:.1f}%)",
+                )
 
         if self.leakage_risks:
-            lines.extend(
-                [
-                    "",
-                    "LEAKAGE & CONTAMINATION RISKS",
-                    "-----------------------------",
-                ]
-            )
-            for lk in self.leakage_risks:
-                lines.append(f"  [!] {lk.get('issue')}: {lk.get('description')}")
+            builder.section("LEAKAGE & CONTAMINATION RISKS")
+            for risk in self.leakage_risks:
+                builder.status(WARN, f"{risk.get('issue')}: {risk.get('description')}")
 
         if self.warnings:
-            lines.extend(
-                [
-                    "",
-                    "DATASET WARNINGS & RECOMMENDATIONS",
-                    "----------------------------------",
-                ]
-            )
-            for w in self.warnings:
-                lines.append(f"  * {w}")
+            builder.section("DATASET WARNINGS & RECOMMENDATIONS")
+            for warning in self.warnings:
+                builder.status(WARN, warning)
 
-        lines.append("=" * 60)
-        return "\n".join(lines)
+        return builder.build()
 
 
 class NLPProfiler:

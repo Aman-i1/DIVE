@@ -62,7 +62,7 @@ def run_gate(
         console.print("")
         console.warn("Rejection Reasons:")
         for r in verdict.reasons:
-            console.print(f"  • {r}")
+            console.print(f"  {console.symbol('bullet')} {r}")
 
     if output_path:
         save_json(output_path, verdict.to_dict())

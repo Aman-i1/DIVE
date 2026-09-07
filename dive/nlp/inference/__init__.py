@@ -10,9 +10,12 @@ from dive.nlp.inference.predictor import (
     load_nlp_predictor,
     save_nlp_predictor,
 )
+from dive.nlp.inference.zero_shot import ZeroShotClassifier
 
 __all__ = [
     "NLPPredictor",
     "save_nlp_predictor",
     "load_nlp_predictor",
+    "ZeroShotClassifier",
 ]
+

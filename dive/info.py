@@ -14,7 +14,7 @@ import numpy as np
 import pandas as pd
 
 from dive.data_intelligence import looks_like_datetime
-from dive.utils.logging import Style
+from dive.utils.report import INFO, TOP, ReportBuilder
 
 
 @dataclass
@@ -93,56 +93,65 @@ class DatasetInfoReport:
         }
 
     def render(self) -> str:
-        lines = [
-            "╔══════════════════════════════════════════════════════════════╗",
-            "║                  DIVE DATASET INSPECTION                     ║",
-            "╚══════════════════════════════════════════════════════════════╝",
-            f"OVERVIEW         Rows: {self.n_rows:,} | Cols: {self.n_cols} | RAM: {self.total_memory_mb:.2f} MB | Missing: {self.total_missing_pct:.1f}%",
-            f"TYPES            Numeric: {self.numeric_count} | Categorical: {self.categorical_count} | Datetime: {self.datetime_count} | ID-like: {len(self.id_cols)}",
-            "",
-            "INFERRED TARGET CANDIDATES:",
-        ]
+        builder = ReportBuilder("DIVE DATASET INSPECTION")
+        builder.kv("Rows x columns", f"{self.n_rows:,} x {self.n_cols}")
+        builder.kv("Memory", f"{self.total_memory_mb:.2f} MB")
+        builder.kv("Missing", f"{self.total_missing_pct:.1f}%")
+        builder.kv(
+            "Column types",
+            f"{self.numeric_count} numeric | {self.categorical_count} categorical | "
+            f"{self.datetime_count} datetime | {len(self.id_cols)} ID-like",
+        )
 
+        builder.section("INFERRED TARGET CANDIDATES")
         if not self.candidate_targets:
-            lines.append("  (No obvious target candidates detected. Specify --target manually.)")
+            builder.note("No obvious target candidates detected. Specify --target manually.")
         else:
-            for i, ct in enumerate(self.candidate_targets[:3], 1):
-                star = "[TOP]" if i == 1 else "     "
-                lines.append(
-                    f"  {star} {i}. Candidate Column: '{ct.column_name}'"
+            for position, candidate in enumerate(self.candidate_targets[:3], 1):
+                builder.status(
+                    TOP if position == 1 else INFO,
+                    f"{position}. '{candidate.column_name}' "
+                    f"-> {candidate.problem_type.upper()} "
+                    f"({candidate.n_unique} unique values, {candidate.dtype})",
                 )
-                lines.append(
-                    f"        Inferred Problem: {ct.problem_type.upper()} ({ct.n_unique} unique values, {ct.dtype})"
-                )
-                lines.append(f"        Reason: {ct.reason}")
+                builder.note(f"Reason: {candidate.reason}", indent=8)
 
-        lines.append("")
-        lines.append("COLUMN PROFILES (Preview):")
-        lines.append(f"  {'Column':<22} {'Role':<18} {'Dtype':<10} {'Missing%':<10} {'Unique':<8} {'Examples'}")
-        lines.append("  " + "-" * 78)
-
-        for cp in self.column_profiles[:15]:
-            ex_str = ", ".join(map(str, cp.example_values[:3]))
-            if len(ex_str) > 22:
-                ex_str = ex_str[:19] + "..."
-            lines.append(
-                f"  {cp.name:<22} {cp.inferred_role:<18} {cp.dtype:<10} {cp.missing_pct:<10.1f} {cp.n_unique:<8} {ex_str}"
+        builder.section("COLUMN PROFILES")
+        rows = []
+        for profile in self.column_profiles:
+            examples = ", ".join(map(str, profile.example_values[:3]))
+            rows.append(
+                [
+                    profile.name,
+                    profile.inferred_role,
+                    profile.dtype,
+                    f"{profile.missing_pct:.1f}",
+                    profile.n_unique,
+                    examples,
+                ]
             )
+        builder.table(
+            ["Column", "Role", "Dtype", "Missing%", "Unique", "Examples"],
+            rows,
+            max_rows=15,
+        )
 
-        if len(self.column_profiles) > 15:
-            lines.append(f"  ... (+{len(self.column_profiles) - 15} more columns)")
-
-        lines.append("")
-        lines.append("RECOMMENDED NEXT STEPS:")
         if self.candidate_targets:
             top_target = self.candidate_targets[0].column_name
-            lines.append(f"  1. Audit ML Readiness: dive doctor <data_file> --target {top_target}")
-            lines.append(f"  2. Train AutoML Model : dive train  <data_file> --target {top_target}")
+            builder.next_steps(
+                [
+                    f"dive ml doctor <data_file> --target {top_target}",
+                    f"dive ml train <data_file> --target {top_target}",
+                ]
+            )
         else:
-            lines.append("  1. Choose your target column from the list above.")
-            lines.append("  2. Run: dive doctor <data_file> --target <your_target>")
-
-        return "\n".join(lines)
+            builder.next_steps(
+                [
+                    "Choose your target column from the list above",
+                    "dive ml doctor <data_file> --target <your_target>",
+                ]
+            )
+        return builder.build()
 
 
 class DatasetInspector:

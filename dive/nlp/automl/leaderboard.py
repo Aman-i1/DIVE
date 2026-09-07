@@ -11,6 +11,7 @@ from typing import Any, Dict, List, Optional
 import pandas as pd
 
 from dive.nlp.automl.trial import NLPTrial
+from dive.utils.report import TOP, ReportBuilder
 
 
 class NLPLeaderboard:
@@ -59,36 +60,38 @@ class NLPLeaderboard:
         return [t.to_dict() for t in self.successful_trials]
 
     def render(self) -> str:
-        """Render formatted ASCII leaderboard table for terminal output."""
+        """Render the leaderboard through the shared platform renderer."""
         df = self.to_dataframe()
         if df.empty:
             return "AutoNLP Leaderboard: No successful trials completed."
 
-        lines = [
-            "=" * 92,
-            "                   DIVE AUTONLP MODEL SELECTION LEADERBOARD                   ",
-            "=" * 92,
-            f"{'Rank':<5} | {'Model':<22} | {'Representation':<18} | {'Score':<8} | {'Latency':<9} | {'Train (ms)':<10}",
-            "-" * 92,
+        builder = ReportBuilder("DIVE AUTONLP MODEL SELECTION LEADERBOARD")
+        score_column = f"Score ({self.primary_metric})"
+        rows = [
+            [
+                row["Rank"],
+                str(row["Model"]),
+                str(row["Representation"]),
+                f"{row[score_column]:.4f}",
+                f"{row['Latency (ms)']:.3f}",
+                f"{row['Train Time (ms)']:.2f}",
+            ]
+            for _, row in df.iterrows()
         ]
+        builder.table(
+            ["Rank", "Model", "Representation", "Score", "Latency (ms)", "Train (ms)"],
+            rows,
+            highlight_first=True,
+        )
 
-        for _, row in df.iterrows():
-            lines.append(
-                f"{row['Rank']:<5} | "
-                f"{str(row['Model'])[:22]:<22} | "
-                f"{str(row['Representation'])[:18]:<18} | "
-                f"{row[f'Score ({self.primary_metric})']:<8.4f} | "
-                f"{row['Latency (ms)']:<9.3f} | "
-                f"{row['Train Time (ms)']:<10.2f}"
-            )
-
-        lines.append("=" * 92)
         if self.champion_trial:
             champ = self.champion_trial
-            lines.append(
-                f" Champion Model: {champ.model_name} + {champ.representation_type} "
-                f"({self.primary_metric}: {champ.primary_metric_score:.4f}, latency: {champ.inference_latency_ms:.2f}ms)"
+            builder.blank()
+            builder.status(
+                TOP,
+                f"Champion Model: {champ.model_name} + {champ.representation_type} "
+                f"({self.primary_metric}: {champ.primary_metric_score:.4f}, "
+                f"latency: {champ.inference_latency_ms:.2f}ms)",
             )
-            lines.append("=" * 92)
 
-        return "\n".join(lines)
+        return builder.build()

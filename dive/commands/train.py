@@ -183,6 +183,8 @@ def run_train(
     make_plots: bool,
     make_report: bool,
     run_validation: bool,
+    time_column: Optional[str] = None,
+    group_column: Optional[str] = None,
 ) -> Dict[str, Any]:
     """Validate inputs, train, and write every artifact into ``output_dir``."""
     if not data_path:
@@ -248,6 +250,8 @@ def run_train(
         cv_folds=cv_folds,
         random_state=random_state,
         time_series=time_series,
+        time_column=time_column,
+        group_column=group_column,
         console=console,
     )
     dive.fit(frame)

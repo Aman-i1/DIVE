@@ -2,7 +2,7 @@
 
 Detects multiple patterns of data leakage:
 - Feature-level leakage (Pearson, Spearman, Mutual Information, Categorical Association, Target-encoding association)
-- Univariate near-perfect prediction test (lightweight single-feature model AUC > 0.995 or R² > 0.995)
+- Univariate near-perfect prediction test (lightweight single-feature model AUC > 0.995 or R2 > 0.995)
 - Temporal leakage & Point-in-Time feature availability (future information after prediction event)
 - Duplicate leakage (exact duplicate rows, duplicate feature vectors, entity contamination across splits)
 - Target-derived feature name pattern warnings
@@ -17,6 +17,8 @@ import numpy as np
 import pandas as pd
 from sklearn.metrics import roc_auc_score, r2_score
 from sklearn.tree import DecisionTreeClassifier, DecisionTreeRegressor
+
+from dive.utils.report import PASS, ReportBuilder
 
 
 @dataclass
@@ -65,19 +67,24 @@ class LeakageReport:
         }
 
     def render(self) -> str:
-        lines = ["LEAKAGE DETECTION REPORT", "========================"]
+        """Render the leakage audit through the shared platform renderer."""
+        builder = ReportBuilder("LEAKAGE DETECTION REPORT")
         if not self.warnings:
-            lines.append("No leakage risks detected.")
-            return "\n".join(lines)
+            builder.status(PASS, "No leakage risks detected.")
+            return builder.build()
 
-        for w in self.warnings:
-            icon = "[HIGH]" if w.risk_level == "HIGH" else "[WARN]"
-            lines.append(f"{icon} {w.risk_level} RISK - Feature: '{w.feature}' [{w.category}]")
-            lines.append(f"   Evidence: {w.evidence_metric} = {w.evidence_score:.4f}")
-            lines.append(f"   Reason: {w.reason}")
-            lines.append(f"   Recommendation: {w.recommendation}")
-            lines.append("")
-        return "\n".join(lines)
+        for warning in self.warnings:
+            builder.status(
+                warning.risk_level,
+                f"{warning.risk_level} RISK - feature '{warning.feature}' ({warning.category})",
+            )
+            builder.note(
+                f"Evidence: {warning.evidence_metric} = {warning.evidence_score:.4f}", indent=8
+            )
+            builder.note(f"Reason: {warning.reason}", indent=8)
+            builder.note(f"Recommendation: {warning.recommendation}", indent=8)
+            builder.blank()
+        return builder.build()
 
 
 class AdvancedLeakageDetector:
@@ -222,7 +229,7 @@ class AdvancedLeakageDetector:
                             feature=str(col),
                             risk_level="HIGH",
                             category="FEATURE_LEAKAGE",
-                            evidence_metric="Univariate Model AUC/R²",
+                            evidence_metric="Univariate Model AUC/R2",
                             evidence_score=score,
                             reason=f"Single-feature decision tree achieves {score:.4f} metric.",
                             recommendation="Remove feature: it almost perfectly encodes the target.",
@@ -236,7 +243,7 @@ class AdvancedLeakageDetector:
                                 feature=str(col),
                                 risk_level="MEDIUM",
                                 category="FEATURE_LEAKAGE",
-                                evidence_metric="Univariate Model AUC/R²",
+                                evidence_metric="Univariate Model AUC/R2",
                                 evidence_score=score,
                                 reason=f"Single-feature achieves unusually high predictive score ({score:.4f}).",
                                 recommendation="Investigate feature provenance for potential leakage.",

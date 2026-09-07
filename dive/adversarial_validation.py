@@ -17,6 +17,7 @@ from sklearn.metrics import roc_auc_score
 from sklearn.model_selection import StratifiedKFold
 
 from dive.decisions import DecisionLogger
+from dive.utils.report import ReportBuilder
 
 
 @dataclass
@@ -39,21 +40,22 @@ class AdversarialValidationReport:
         }
 
     def render(self) -> str:
-        lines = [
-            "ADVERSARIAL VALIDATION DISTRIBUTION SHIFT AUDIT",
-            "===============================================",
-            f"Adversarial ROC-AUC      : {self.adversarial_auc:.4f} [Status: {self.shift_status}]",
-            f"Interpretation           : {self.interpretation}",
-        ]
+        """Render the adversarial validation audit through the shared platform renderer."""
+        builder = ReportBuilder("ADVERSARIAL VALIDATION DISTRIBUTION SHIFT AUDIT")
+        builder.status(self.shift_status, f"Shift status: {self.shift_status}")
+        builder.kv("Adversarial ROC-AUC", f"{self.adversarial_auc:.4f}")
+        builder.kv("Interpretation", self.interpretation)
+
         if self.top_drift_features:
-            lines.append("\nTop Features Driving Distribution Shift:")
-            for feat, imp in self.top_drift_features[:5]:
-                lines.append(f"  - {feat:<20}: Importance = {imp:.4f}")
+            builder.section("TOP FEATURES DRIVING DISTRIBUTION SHIFT")
+            builder.table(
+                ["Feature", "Importance"],
+                [[feature, f"{importance:.4f}"] for feature, importance in self.top_drift_features[:5]],
+            )
         if self.recommendations:
-            lines.append("\nRecommendations:")
-            for rec in self.recommendations:
-                lines.append(f"  - {rec}")
-        return "\n".join(lines)
+            builder.section("RECOMMENDATIONS")
+            builder.bullets(self.recommendations)
+        return builder.build()
 
 
 class AdversarialValidator:

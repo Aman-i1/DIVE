@@ -76,10 +76,10 @@ class DeploymentGate:
         # 3. Drift check if reference dataframe is provided
         if reference_df is not None:
             drift_detector = DriftDetector()
-            drift_report = drift_detector.detect(reference_df, current_df, target=predictor.target)
-            if drift_report.overall_drift_detected:
+            drift_report = drift_detector.analyze_drift(reference_df, current_df)
+            if drift_report.retraining_recommended:
                 drift_ok = False
-                reasons.append("Significant distribution drift detected (PSI > threshold).")
+                reasons.append(f"Significant distribution drift detected: {drift_report.recommendation_reason}")
 
         passed = schema_ok and leakage_ok and drift_ok
         status = "DEPLOYMENT_APPROVED" if passed else "DEPLOYMENT_REJECTED"

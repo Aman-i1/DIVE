@@ -2,10 +2,9 @@
 
 from __future__ import annotations
 
-from typing import List
-
 from dive.benchmarking import BenchmarkSuite
 from dive.utils.logging import Console
+from dive.utils.report import ReportBuilder
 
 
 def run_benchmark(console: Console, mode: str = "fast") -> None:
@@ -14,16 +13,20 @@ def run_benchmark(console: Console, mode: str = "fast") -> None:
     suite = BenchmarkSuite(mode=mode)
     results = suite.run_benchmark([1000, 10_000])
 
-    lines = [f"{'Rows':<10} {'Cols':<6} {'Winner Model':<16} {'Fit (s)':<10} {'Latency (ms)':<14} {'Metric':<10}"]
-    lines.append("-" * 72)
-    for r in results:
-        lines.append(
-            f"{r.n_rows:<10} "
-            f"{r.n_cols:<6} "
-            f"{r.model_name:<16} "
-            f"{r.fit_time_sec:<10.2f} "
-            f"{r.predict_latency_ms_per_row:<14.4f} "
-            f"{r.metric_score:<10.4f}"
-        )
-    console.print("\n".join(lines))
+    builder = ReportBuilder(console=console)
+    builder.table(
+        ["Rows", "Cols", "Winner Model", "Fit (s)", "Latency (ms)", "Metric"],
+        [
+            [
+                f"{result.n_rows:,}",
+                result.n_cols,
+                result.model_name,
+                f"{result.fit_time_sec:.2f}",
+                f"{result.predict_latency_ms_per_row:.4f}",
+                f"{result.metric_score:.4f}",
+            ]
+            for result in results
+        ],
+    )
+    console.report(builder)
     console.success("Benchmark completed successfully.")

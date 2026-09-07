@@ -10,7 +10,7 @@ import click
 import pandas as pd
 
 from dive.autopilot import AutopilotOrchestrator
-from dive.utils.logging import Console, get_console
+from dive.commands._context import console_from
 
 
 @click.command(name="autopilot", help="Execute complete 20-step Senior ML Review + Reliability + AutoML Autopilot.")
@@ -27,7 +27,9 @@ from dive.utils.logging import Console, get_console
 @click.option("--entity", "-e", "entity_column", default=None, help="Entity/group identifier column.")
 @click.option("--time-column", default=None, help="Timestamp/date column.")
 @click.option("--output", "-o", default="./dive_autopilot_out", help="Output directory for artifacts & reviews.")
+@click.pass_context
 def autopilot_command(
+    ctx: click.Context,
     data_path: str,
     target: str,
     mode: str,
@@ -37,7 +39,7 @@ def autopilot_command(
     output: str,
 ) -> None:
     """Run Senior ML Autopilot workflow."""
-    console = get_console()
+    console = console_from(ctx)
     from dive.utils.io import load_dataframe
     try:
         df = load_dataframe(data_path)

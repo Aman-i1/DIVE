@@ -15,6 +15,8 @@ from typing import Any, Dict, List, Optional, Tuple, Union
 import numpy as np
 import pandas as pd
 
+from dive.utils.report import FAIL, PASS, WARN, ReportBuilder
+
 
 @dataclass
 class DriftFeatureReport:
@@ -60,26 +62,38 @@ class DriftReport:
         }
 
     def render(self) -> str:
-        lines = [
-            "DATA & PREDICTION DRIFT REPORT",
-            "==============================",
-            f"Features Analyzed   : {self.n_features_analyzed}",
-            f"Drifting Features   : {self.n_drifting_features}",
-            f"Retraining Needed   : {'YES (REQUIRED)' if self.retraining_recommended else 'NO (STABLE)'}",
-            f"Reason              : {self.recommendation_reason}",
-            "",
-            "Feature Drift Statuses:",
-        ]
-        for fr in self.feature_reports:
-            icon = "[DRIFT]" if fr.drift_status == "SIGNIFICANT_DRIFT" else ("[WARN]" if fr.drift_status == "MODERATE_DRIFT" else "[PASS]")
-            lines.append(f"  {icon} {fr.feature:<20}: PSI={fr.psi_score:.4f} [{fr.drift_status}]")
+        """Render the drift report through the shared platform renderer."""
+        builder = ReportBuilder("DATA & PREDICTION DRIFT REPORT")
+        builder.kv("Features Analyzed", self.n_features_analyzed)
+        builder.kv("Drifting Features", self.n_drifting_features)
+        builder.status(
+            FAIL if self.retraining_recommended else PASS,
+            "Retraining REQUIRED" if self.retraining_recommended else "Stable, no retraining needed",
+        )
+        builder.kv("Reason", self.recommendation_reason)
+
+        if self.feature_reports:
+            builder.section("FEATURE DRIFT STATUSES")
+            for feature_report in self.feature_reports:
+                # SIGNIFICANT_DRIFT / MODERATE_DRIFT / NO_DRIFT are this module's own
+                # vocabulary; map them onto the canonical three explicitly.
+                if feature_report.drift_status == "SIGNIFICANT_DRIFT":
+                    token = FAIL
+                elif feature_report.drift_status == "MODERATE_DRIFT":
+                    token = WARN
+                else:
+                    token = PASS
+                builder.status(
+                    token,
+                    f"{feature_report.feature}: PSI={feature_report.psi_score:.4f} "
+                    f"({feature_report.drift_status})",
+                )
 
         if self.prediction_drift:
-            lines.append("")
-            lines.append("Prediction Distribution Drift:")
-            lines.append(f"  - Status : {self.prediction_drift.get('status', 'NO_DRIFT')}")
-            lines.append(f"  - PSI    : {self.prediction_drift.get('psi', 0.0):.4f}")
-        return "\n".join(lines)
+            builder.section("PREDICTION DISTRIBUTION DRIFT")
+            builder.kv("Status", self.prediction_drift.get("status", "NO_DRIFT"))
+            builder.kv("PSI", f"{self.prediction_drift.get('psi', 0.0):.4f}")
+        return builder.build()
 
 
 class DriftDetector:
@@ -135,7 +149,7 @@ class DriftDetector:
         if n_significant >= 2 or (pred_drift_data and pred_drift_data.get("status") == "SIGNIFICANT_DRIFT"):
             retrain = True
             reason = f"Significant drift detected in {n_significant} feature(s) and/or prediction distribution."
-        elif n_drifting >= len(feature_reports) * 0.4:
+        elif n_drifting > 0 and n_drifting >= len(feature_reports) * 0.4:
             retrain = True
             reason = f"Widespread moderate drift across {n_drifting} features."
 

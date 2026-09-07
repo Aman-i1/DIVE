@@ -14,6 +14,7 @@ from typing import Any, Dict, List, Optional, Union
 
 from dive import __version__
 from dive.utils.io import ensure_dir, load_json, save_json
+from dive.utils.report import FAIL, PASS, ReportBuilder
 
 
 @dataclass
@@ -38,22 +39,23 @@ class PromotionGateCheck:
         }
 
     def render(self) -> str:
-        lines = [
-            "MODEL PROMOTION GATE VERIFICATION",
-            "=================================",
-            f"Candidate Version : {self.candidate_version}",
-            f"Target Stage      : {self.target_stage.upper()}",
-            f"Verdict           : {'[APPROVED] PROMOTION APPROVED' if self.approved else '[REJECTED] PROMOTION REJECTED'}",
-        ]
+        """Render the promotion gate check through the shared platform renderer."""
+        builder = ReportBuilder("MODEL PROMOTION GATE VERIFICATION")
+        builder.kv("Candidate Version", self.candidate_version)
+        builder.kv("Target Stage", self.target_stage.upper())
+        builder.status(
+            PASS if self.approved else FAIL,
+            "Promotion APPROVED" if self.approved else "Promotion REJECTED",
+        )
         if self.passed_checks:
-            lines.append("Passed Checks:")
-            for p in self.passed_checks:
-                lines.append(f"  [PASS] {p}")
+            builder.section("PASSED CHECKS")
+            for check in self.passed_checks:
+                builder.status(PASS, check)
         if self.rejection_reasons:
-            lines.append("Rejection Reasons:")
-            for r in self.rejection_reasons:
-                lines.append(f"  [FAIL] {r}")
-        return "\n".join(lines)
+            builder.section("REJECTION REASONS")
+            for reason in self.rejection_reasons:
+                builder.status(FAIL, reason)
+        return builder.build()
 
 
 class PromotionGate:

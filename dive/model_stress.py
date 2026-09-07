@@ -2,7 +2,7 @@
 
 Stress tests fitted models to disprove overoptimistic assumptions:
 1. Target Permutation Sanity Test: Shuffles target y and re-evaluates.
-   - If real AUC = 0.91 and shuffled AUC ≈ 0.50 -> PASS (reassuring, model learns real signals).
+   - If real AUC = 0.91 and shuffled AUC ~= 0.50 -> PASS (reassuring, model learns real signals).
    - If shuffled AUC >> 0.50 -> FAIL / CRITICAL (severe target leakage or data artifact).
 2. Seed Stability: Evaluates variance across random seeds.
 3. Feature Ablation / Permutation Importance Stability: Assesses reliance on single brittle features.
@@ -18,6 +18,7 @@ import pandas as pd
 from sklearn.metrics import accuracy_score, r2_score, roc_auc_score
 
 from dive.decisions import DecisionLogger
+from dive.utils.report import ReportBuilder
 
 
 @dataclass
@@ -46,20 +47,24 @@ class StressTestReport:
         }
 
     def render(self) -> str:
-        lines = [
-            "MODEL STRESS TESTING & SANITY AUDIT",
-            "===================================",
-            f"Overall Stress Status    : [{self.overall_stress_status}]",
-            f"Nominal Metric Score     : {self.nominal_score:.4f}",
-            f"Shuffled Target Baseline : {self.shuffled_target_score:.4f} [Sanity: {self.permutation_sanity_status}]",
-            f"Seed Stability (std)     : {self.seed_stability_std:.4f} [{self.seed_stability_status}]",
-            f"Top Feature Reliance     : {self.top_feature_reliance:.1%}",
-        ]
+        """Render the stress suite through the shared platform renderer."""
+        builder = ReportBuilder("MODEL STRESS TESTING & SANITY AUDIT")
+        builder.status(self.overall_stress_status, f"Overall stress status: {self.overall_stress_status}")
+        builder.kv("Nominal Metric Score", f"{self.nominal_score:.4f}")
+        builder.kv(
+            "Shuffled Target Base",
+            f"{self.shuffled_target_score:.4f} (sanity: {self.permutation_sanity_status})",
+        )
+        builder.kv(
+            "Seed Stability (std)",
+            f"{self.seed_stability_std:.4f} ({self.seed_stability_status})",
+        )
+        builder.kv("Top Feature Reliance", f"{self.top_feature_reliance:.1%}")
+
         if self.recommendations:
-            lines.append("\nRecommendations:")
-            for rec in self.recommendations:
-                lines.append(f"  - {rec}")
-        return "\n".join(lines)
+            builder.section("RECOMMENDATIONS")
+            builder.bullets(self.recommendations)
+        return builder.build()
 
 
 class ModelStressTester:

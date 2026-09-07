@@ -15,6 +15,8 @@ import time
 from dataclasses import dataclass, field
 from typing import Any, Dict, List, Optional
 
+from dive.utils.report import ReportBuilder
+
 
 @dataclass
 class DecisionRecord:
@@ -81,10 +83,17 @@ class DecisionLogger:
         return [r.to_dict() for r in self.records]
 
     def render_summary(self) -> str:
+        """Render the whole decision log through the shared platform renderer."""
         if not self.records:
             return "No decisions recorded."
-        lines = ["DIVE AUTOMATED DECISION LOG", "==========================="]
-        for r in self.records:
-            lines.append(r.render())
-            lines.append("")
-        return "\n".join(lines)
+        builder = ReportBuilder("DIVE AUTOMATED DECISION LOG")
+        for record in self.records:
+            builder.bullet(
+                f"{record.component}: {record.decision} "
+                f"(confidence: {int(record.confidence * 100)}%)"
+            )
+            builder.note(f"Reason: {record.reason}", indent=6)
+            if record.evidence:
+                evidence = ", ".join(f"{key}={value}" for key, value in record.evidence.items())
+                builder.note(f"Evidence: {evidence}", indent=6)
+        return builder.build()

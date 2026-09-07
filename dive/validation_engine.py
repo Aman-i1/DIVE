@@ -26,6 +26,7 @@ import pandas as pd
 
 from dive.decisions import DecisionLogger
 from dive.leakage import AdvancedLeakageDetector
+from dive.utils.report import WARN, ReportBuilder
 
 
 @dataclass
@@ -66,20 +67,23 @@ class ValidationPlan:
         }
 
     def render(self) -> str:
-        lines = [
-            "VALIDATION INTELLIGENCE PLAN",
-            "============================",
-            f"Strategy             : {self.strategy}(n_splits={self.n_splits})",
-            f"Group Column         : {self.group_column or 'None'}",
-            f"Time Column          : {self.time_column or 'None'}",
-            f"Validation Risk      : {self.risk_assessment.risk_level} ({self.risk_assessment.risk_score:.0f}/100)",
-            f"Explanation          : {self.explanation}",
-        ]
+        """Render the validation plan through the shared platform renderer."""
+        builder = ReportBuilder("VALIDATION INTELLIGENCE PLAN")
+        builder.kv("Strategy", f"{self.strategy}(n_splits={self.n_splits})")
+        builder.kv("Group Column", self.group_column or "None")
+        builder.kv("Time Column", self.time_column or "None")
+        builder.status(
+            self.risk_assessment.risk_level,
+            f"Validation risk: {self.risk_assessment.risk_level} "
+            f"({self.risk_assessment.risk_score:.0f}/100)",
+        )
+        builder.kv("Explanation", self.explanation)
+
         if self.risk_assessment.reasons:
-            lines.append("Identified Risks:")
-            for r in self.risk_assessment.reasons:
-                lines.append(f"  [WARN] {r}")
-        return "\n".join(lines)
+            builder.section("IDENTIFIED RISKS")
+            for reason in self.risk_assessment.reasons:
+                builder.status(WARN, reason)
+        return builder.build()
 
 
 class ValidationIntelligenceEngine:

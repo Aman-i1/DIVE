@@ -11,7 +11,7 @@ import click
 import pandas as pd
 
 from dive.autopilot import AutopilotOrchestrator
-from dive.utils.logging import Console, get_console
+from dive.commands._context import console_from
 
 
 @click.command(name="review", help="Perform comprehensive Senior ML Reliability review on an experiment or dataset.")
@@ -20,7 +20,9 @@ from dive.utils.logging import Console, get_console
 @click.option("--entity", "-e", default=None, help="Entity identifier column.")
 @click.option("--time-column", default=None, help="Timestamp column.")
 @click.option("--output", "-o", default="./review_report.json", help="Path to save output JSON review.")
+@click.pass_context
 def review_command(
+    ctx: click.Context,
     data_path: str,
     target: str,
     entity: Optional[str],
@@ -28,7 +30,7 @@ def review_command(
     output: str,
 ) -> None:
     """Execute Senior ML Review on dataset."""
-    console = get_console()
+    console = console_from(ctx)
     from dive.utils.io import load_dataframe
     try:
         df = load_dataframe(data_path)

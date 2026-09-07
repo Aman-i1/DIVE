@@ -107,8 +107,8 @@ def test_cli_export_and_gate(cli_runner: CliRunner, sample_csv: str, tmp_path: P
     res_export = cli_runner.invoke(cli, ["export", str(model_pkl), "--output", str(onnx_file)])
     assert res_export.exit_code == 0
 
-    res_gate = cli_runner.invoke(cli, ["gate", str(model_pkl), "--data", sample_csv])
-    assert res_gate.exit_code == 0
+    res_gate = cli_runner.invoke(cli, ["gate", str(model_pkl), "--data", sample_csv, "--ref", sample_csv])
+    assert res_gate.exit_code == 0, res_gate.output
     assert "DEPLOYMENT APPROVED" in res_gate.output
 
 

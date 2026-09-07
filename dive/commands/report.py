@@ -9,7 +9,8 @@ from typing import Any, Dict, Optional
 from dive.core import Dive
 from dive.exceptions import DataError, ModelError
 from dive.utils.io import ensure_dir, resolve_path
-from dive.utils.logging import Console
+from dive.utils.logging import Console, Style
+from dive.utils.report import ReportBuilder
 
 
 def run_report(
@@ -69,33 +70,30 @@ def run_explain(
     console.rule(f"How {dive.best_model_name_} was built")
     for step in explanation["steps"]:
         console.print("")
-        from dive.utils.logging import Style
-
         console.print(f"  {console.paint(step['title'], Style.BRIGHT, Style.BOLD)}")
         for line in step["lines"]:
             console.print(f"    {console.status_symbol('bullet')} {line}")
 
     importances = dive.feature_importances(top_n=15)
     if importances is not None and not importances.empty:
-        from dive.utils.logging import Style
-
-        console.print("")
-        console.print(f"  {console.paint('Top features', Style.BRIGHT, Style.BOLD)}")
+        # Importances are relative, so each bar is scaled against the strongest
+        # feature rather than an absolute 1.0 ceiling.
         maximum = float(importances["importance"].max()) or 1.0
+        builder = ReportBuilder(console=console)
+        builder.section("Top features")
         for _, row in importances.iterrows():
-            bar = "#" * max(1, int(28 * float(row["importance"]) / maximum))
-            value = f"{float(row['importance']):.4f}"
-            console.print(
-                f"    {str(row['feature'])[:34]:<34} "
-                f"{console.paint(bar, Style.ACCENT)} "
-                f"{console.paint(value, Style.MUTED)}"
+            builder.bar(
+                str(row["feature"]),
+                float(row["importance"]),
+                maximum,
+                suffix=f"{float(row['importance']):.4f}",
             )
+        console.report(builder)
 
-    console.print("")
-    console.print(
-        f"  Tip: dive explain --model {model_path} --output explanation.html"
-    )
-    console.print("       writes this plus standalone reproduction code as HTML.")
+    footer = ReportBuilder(console=console)
+    footer.next_steps([f"dive explain --model {model_path} --output explanation.html"])
+    footer.note("Writes this plus standalone reproduction code as HTML.", indent=8)
+    console.report(footer)
     return None
 
 

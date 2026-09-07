@@ -17,6 +17,7 @@ import pandas as pd
 
 from dive.data_intelligence import DataIntelligence
 from dive.exceptions import DataError, TargetError
+from dive.utils.report import FAIL, PASS, WARN, ReportBuilder
 
 
 @dataclass
@@ -49,22 +50,19 @@ class ProductionReadinessScore:
         }
 
     def render(self) -> str:
-        lines = [
-            "DIVE PRODUCTION READINESS SCORE",
-            "================================",
-            f"Overall Score            : {self.overall_score:.1f} / 100",
-            "Breakdown:",
-            f"  - Data Quality         : {self.data_quality_score:.1f} / 100",
-            f"  - Leakage Safety       : {self.leakage_safety_score:.1f} / 100",
-            f"  - Validation Safety    : {self.validation_safety_score:.1f} / 100",
-            f"  - Model Suitability    : {self.model_suitability_score:.1f} / 100",
-            f"  - Schema Safety        : {self.schema_safety_score:.1f} / 100",
-        ]
+        builder = ReportBuilder("DIVE PRODUCTION READINESS SCORE")
+        builder.kv("Overall Score", f"{self.overall_score:.1f} / 100")
+        builder.section("BREAKDOWN")
+        builder.kv("Data Quality", f"{self.data_quality_score:.1f} / 100")
+        builder.kv("Leakage Safety", f"{self.leakage_safety_score:.1f} / 100")
+        builder.kv("Validation Safety", f"{self.validation_safety_score:.1f} / 100")
+        builder.kv("Model Suitability", f"{self.model_suitability_score:.1f} / 100")
+        builder.kv("Schema Safety", f"{self.schema_safety_score:.1f} / 100")
         if self.penalties:
-            lines.append("Applied Penalties:")
-            for p in self.penalties:
-                lines.append(f"  ⚠ -{p['deduction']} pts: {p['reason']}")
-        return "\n".join(lines)
+            builder.section("APPLIED PENALTIES")
+            for penalty in self.penalties:
+                builder.status(WARN, f"-{penalty['deduction']} pts: {penalty['reason']}")
+        return builder.build()
 
 
 @dataclass
@@ -97,76 +95,69 @@ class DoctorReport:
         return self.render_text()
 
     def render_text(self, unicode_box: bool = True) -> str:
-        """Render ASCII/Unicode terminal summary."""
-        lines = []
-        if unicode_box:
-            lines.extend([
-                "╔══════════════════════════════════════════════════════════════╗",
-                "║                       DIVE ML DOCTOR                         ║",
-                "╚══════════════════════════════════════════════════════════════╝",
-            ])
-        else:
-            lines.extend([
-                "================================================================",
-                "                       DIVE ML DOCTOR                           ",
-                "================================================================",
-            ])
+        """Render the terminal summary.
+
+        ``unicode_box`` is retained for backward compatibility but no longer
+        consulted: glyph fallback is now decided by the output stream's encoding
+        via the console symbol table, rather than by a caller-supplied flag that
+        defaulted to True and printed "?" on a cp1252 console.
+        """
+        builder = ReportBuilder("DIVE ML DOCTOR")
 
         ds = self.sections.get("DATASET", {})
-        lines.append(f"DATASET           Rows: {ds.get('n_samples', 0):,} | Features: {ds.get('n_features', 0)} | Problem: {ds.get('problem_type', 'Unknown')}")
-        
+        builder.kv("Rows x features", f"{ds.get('n_samples', 0):,} x {ds.get('n_features', 0)}")
+        builder.kv("Problem type", ds.get("problem_type", "Unknown"))
+
         dq = self.sections.get("DATA QUALITY", {})
-        missing_icon = "⚠" if dq.get("total_missing_pct", 0) > 5 else "✓"
-        dup_icon = "⚠" if dq.get("duplicate_rows", 0) > 0 else "✓"
-        const_icon = "⚠" if dq.get("constant_cols") else "✓"
-        id_icon = "⚠" if dq.get("id_like_cols") else "✓"
-        
-        lines.append(
-            f"DATA QUALITY      Missing values: {missing_icon} {dq.get('total_missing_pct', 0):.1f}% | "
-            f"Duplicates: {dup_icon} {dq.get('duplicate_rows', 0)} | "
-            f"Constant cols: {const_icon} {len(dq.get('constant_cols', []))} | "
-            f"ID-like cols: {id_icon} {len(dq.get('id_like_cols', []))}"
-        )
+        builder.section("DATA QUALITY")
+        missing_pct = dq.get("total_missing_pct", 0)
+        duplicates = dq.get("duplicate_rows", 0)
+        constant_cols = dq.get("constant_cols", []) or []
+        id_like_cols = dq.get("id_like_cols", []) or []
+        builder.status(WARN if missing_pct > 5 else PASS, f"Missing values: {missing_pct:.1f}%")
+        builder.status(WARN if duplicates else PASS, f"Duplicate rows: {duplicates}")
+        builder.status(WARN if constant_cols else PASS, f"Constant columns: {len(constant_cols)}")
+        builder.status(WARN if id_like_cols else PASS, f"ID-like columns: {len(id_like_cols)}")
 
         val = self.sections.get("VALIDATION STRATEGY", {})
-        lines.append(
-            f"VALIDATION        Random Split: {val.get('random_split_status', 'UNKNOWN')} | "
-            f"Group Leakage: {val.get('group_leakage_status', 'NONE')} | "
-            f"Temporal: {val.get('temporal_status', 'NONE')}"
+        builder.section("VALIDATION STRATEGY")
+        builder.kv("Random split", val.get("random_split_status", "UNKNOWN"))
+        builder.kv("Group leakage", val.get("group_leakage_status", "NONE"))
+        builder.kv("Temporal", val.get("temporal_status", "NONE"))
+        recommended = val.get("recommended_strategy", "StratifiedKFold")
+        group_column = val.get("group_column")
+        builder.kv(
+            "Recommended",
+            f"{recommended}({group_column})" if group_column else recommended,
         )
 
         leak = self.sections.get("LEAKAGE", {})
-        leak_high = leak.get("high_risk_features", [])
-        leak_icon = "[HIGH RISK]" if leak_high else ("[WARNING]" if leak.get("suspicious_features") else "[PASSED]")
-        lines.append(f"LEAKAGE           Status: {leak_icon}")
-
-        rec_val = val.get("recommended_strategy", "StratifiedKFold")
-        rec_group = val.get("group_column")
-        rec_val_str = f"{rec_val}({rec_group})" if rec_group else rec_val
-        lines.append(f"RECOMMENDED VAL   {rec_val_str}")
+        builder.section("LEAKAGE")
+        if leak.get("high_risk_features"):
+            builder.status(FAIL, "High-risk leakage detected")
+        elif leak.get("suspicious_features"):
+            builder.status(WARN, "Suspicious features detected")
+        else:
+            builder.status(PASS, "No leakage detected")
 
         models = self.sections.get("MODEL RECOMMENDATIONS", {}).get("recommended", [])
         if models:
-            lines.append(f"MODEL RECS        {', '.join(models[:4])}")
+            builder.section("MODEL RECOMMENDATIONS")
+            builder.kv("Recommended", ", ".join(models[:4]))
 
-        lines.append("")
-        lines.append(self.readiness_score.render())
+        builder.blank()
+        builder.raw(self.readiness_score.render())
 
         if self.risks:
-            lines.append("")
-            lines.append("IDENTIFIED RISKS:")
-            for r in self.risks:
-                severity = r.get("severity", "MEDIUM")
-                icon = "[HIGH]" if severity == "HIGH" else "[WARN]"
-                lines.append(f"  {icon} [{severity}] {r.get('name')}: {r.get('reason')}")
+            builder.section("IDENTIFIED RISKS")
+            for risk in self.risks:
+                severity = risk.get("severity", "MEDIUM")
+                builder.status(severity, f"{risk.get('name')}: {risk.get('reason')}")
 
         if self.action_plan:
-            lines.append("")
-            lines.append("ACTION PLAN:")
-            for i, step in enumerate(self.action_plan, 1):
-                lines.append(f"  {i}. {step}")
+            builder.next_steps(self.action_plan)
 
-        return "\n".join(lines)
+        return builder.build()
 
 
 class DiveDoctor:

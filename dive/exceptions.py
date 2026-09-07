@@ -57,3 +57,20 @@ class TrainingError(DiveError):
 
 class ValidationError(DiveError):
     """A validation/crosscheck run failed hard (used by the validate command)."""
+
+
+class ResourceError(DiveError):
+    """The host cannot safely run the requested workload.
+
+    Raised deliberately *instead of* attempting the work, so an oversized model
+    or dataset is refused up front rather than exhausting RAM and taking the
+    machine down with it. The hint always names a smaller setting to retry with.
+    """
+
+
+class DependencyError(DiveError):
+    """A required optional dependency is absent and was not installed.
+
+    Carries the install command in ``hint`` so the user can act without going to
+    the docs.
+    """

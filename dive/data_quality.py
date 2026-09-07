@@ -15,6 +15,7 @@ import numpy as np
 import pandas as pd
 
 from dive.decisions import DecisionLogger
+from dive.utils.report import ReportBuilder
 
 
 @dataclass
@@ -68,25 +69,28 @@ class DataQualityReport:
         }
 
     def render(self) -> str:
-        lines = [
-            "DATA QUALITY & INFERRED RULES AUDIT",
-            "===================================",
-            f"Overall Status       : [{self.overall_quality_status}]",
-            f"Rows / Columns       : {self.total_rows:,} rows, {self.total_columns} cols",
-            f"Missing Values       : {self.missing_cells_pct:.2f}%",
-            f"Duplicate Rows       : {self.duplicate_rows_count:,}",
-        ]
+        """Render the data quality audit through the shared platform renderer."""
+        builder = ReportBuilder("DATA QUALITY & INFERRED RULES AUDIT")
+        builder.status(self.overall_quality_status, f"Overall status: {self.overall_quality_status}")
+        builder.kv("Rows / Columns", f"{self.total_rows:,} rows, {self.total_columns} cols")
+        builder.kv("Missing Values", f"{self.missing_cells_pct:.2f}%")
+        builder.kv("Duplicate Rows", f"{self.duplicate_rows_count:,}")
         if self.constant_columns:
-            lines.append(f"Constant Columns     : {', '.join(self.constant_columns)}")
+            builder.kv("Constant Columns", ", ".join(self.constant_columns))
         if self.near_constant_columns:
-            lines.append(f"Near-Constant Columns: {', '.join(self.near_constant_columns)}")
+            builder.kv("Near-Constant Columns", ", ".join(self.near_constant_columns))
+        if self.high_cardinality_columns:
+            builder.kv("High-Cardinality Cols", ", ".join(self.high_cardinality_columns))
+
         if self.inferred_rules:
-            lines.append("\nStatistically Inferred Consistency Rules [INFERRED RULE]:")
-            for r in self.inferred_rules:
-                lines.append(
-                    f"  - [{r.status:<7}] {r.rule_description} (Violations: {r.violations_count:,} ({r.violations_pct:.1%}))"
+            builder.section("STATISTICALLY INFERRED CONSISTENCY RULES")
+            for rule in self.inferred_rules:
+                builder.status(
+                    rule.status,
+                    f"{rule.rule_description} "
+                    f"(violations: {rule.violations_count:,}, {rule.violations_pct:.1%})",
                 )
-        return "\n".join(lines)
+        return builder.build()
 
 
 class DataQualityEngine:

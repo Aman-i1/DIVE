@@ -536,3 +536,49 @@ Checks for newer versions of DIVE on PyPI and executes an automated upgrade migr
 ```bash
 dive upgrade
 ```
+
+---
+
+## 22. `dive nlp` (Natural Language Processing)
+
+### Subcommands
+- **`dive nlp info DATA_PATH`**: Inspect dataset text columns, target candidates, and class balance.
+- **`dive nlp profile DATA_PATH [-x text_col] [-y target_col]`**: Profile document token distributions, vocabulary size, and character metrics.
+- **`dive nlp train DATA_PATH [-x text_col] [-y target_col] [-n trials] [-o output.pkl]`**: Autonomous model search across representations (TF-IDF, Character n-grams, Word+Char unions, Okapi BM25, LSA topic embeddings) and estimators.
+- **`dive nlp predict MODEL_PATH [-t text | -d data.csv] [--proba]`**: Predict on a terminal string or batch dataset with class probabilities.
+- **`dive nlp zero-shot TEXT --labels "label1,label2,..."`**: Classify raw text into arbitrary categories with calibrated probabilities and domain anchor expansion without training.
+- **`dive nlp benchmark MODEL_PATH [--samples 50]`**: Profile inference latency percentiles (p50, p95, p99) and docs/second throughput.
+- **`dive nlp monitor BASELINE.csv PROD.csv [-x text_col]`**: Monitor vocabulary drift, token length shifts, and Out-of-Vocabulary (OOV) rates.
+- **`dive nlp serve MODEL_PATH [--port 8000]`**: Deploy high-throughput FastAPI REST API server with interactive Swagger UI.
+
+---
+
+## 23. `dive dl` (Deep Learning Across 5 Modalities)
+
+### Subcommands
+- **`dive dl doctor [-m modality]`**: Check GPU/CUDA availability, RAM projections, and package tiers.
+- **`dive dl info SOURCE [-m modality]`**: Inspect dataset sample counts, image/audio metadata, and projected RAM footprints.
+- **`dive dl train SOURCE [-m modality] [-t task] [-e epochs] [-o model.pkl] [--no-torch]`**: Train neural models across Tabular, Text, Image, Audio, and Video with dual PyTorch and Scikit-Learn backends.
+- **`dive dl predict MODEL_PATH [--input file_or_text | --data dataset_or_folder] [--proba]`**: Score single media files or entire unlabelled directories.
+- **`dive dl benchmark MODEL_PATH [--samples 50]`**: Benchmark prediction latency percentiles and throughput on CPU/GPU.
+- **`dive dl auto SOURCE [-m modality] [-n trials] [-o champion.pkl]`**: Autonomous multi-architecture neural hyperparameter search (AutoDL).
+
+---
+
+## 24. `dive models` (Model Registry & Governance)
+
+### Subcommands
+- **`dive models register NAME --model PATH [--stage CANDIDATE]`**: Register trained model artifact into local cryptographic model registry.
+- **`dive models list`**: List all registered models, versions, stages (`CANDIDATE`, `STAGING`, `PRODUCTION`, `ARCHIVED`), and creation dates.
+- **`dive models show NAME [--version 1]`**: Display full lineage metadata, evaluation scores, and hyperparameters.
+- **`dive models promote NAME VERSION TARGET_STAGE`**: Evaluates model performance and promote model between governance stages.
+
+---
+
+## 25. `dive experiments` (Experiment Tracking)
+
+### Subcommands
+- **`dive experiments list`**: List tracked training runs, metrics, parameters, and artifact references.
+- **`dive experiments show RUN_ID`**: Show granular training curves, feature importances, and validation splits.
+- **`dive experiments compare RUN_ID_1 RUN_ID_2`**: Side-by-side metric comparison and delta diffs between model trials.
+

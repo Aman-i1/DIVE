@@ -16,6 +16,7 @@ import pandas as pd
 from scipy.stats import ks_2samp, wasserstein_distance
 
 from dive.decisions import DecisionLogger
+from dive.utils.report import ReportBuilder
 
 
 @dataclass
@@ -62,22 +63,37 @@ class ObservabilityReport:
         }
 
     def render(self) -> str:
-        lines = [
-            "PRODUCTION OBSERVABILITY & DRIFT AUDIT",
-            "=======================================",
-            f"Retraining Urgency  : {self.retraining_urgency_score:.1f}/100 [Alert: {self.retraining_alert_level}]",
-            f"Features Monitored  : {self.features_monitored_count} ({self.drifted_features_count} drifted)",
-            f"Prediction Drift PSI: {self.prediction_drift_psi:.4f}",
-        ]
+        """Render the observability audit through the shared platform renderer."""
+        builder = ReportBuilder("PRODUCTION OBSERVABILITY & DRIFT AUDIT")
+        builder.status(
+            self.retraining_alert_level,
+            f"Retraining alert level: {self.retraining_alert_level}",
+        )
+        builder.bar(
+            "Retraining Urgency",
+            self.retraining_urgency_score,
+            100.0,
+            suffix=f"{self.retraining_urgency_score:.1f}/100",
+        )
+        builder.kv(
+            "Features Monitored",
+            f"{self.features_monitored_count} ({self.drifted_features_count} drifted)",
+        )
+        builder.kv("Prediction Drift PSI", f"{self.prediction_drift_psi:.4f}")
+
         if self.feature_metrics:
-            lines.append("\nTop Feature Drift Metrics:")
-            for name, m in list(self.feature_metrics.items())[:5]:
-                lines.append(f"  - {name:<20}: PSI={m.psi_score:.4f}, Status={m.drift_status}")
+            builder.section("TOP FEATURE DRIFT METRICS")
+            builder.table(
+                ["Feature", "PSI", "Status"],
+                [
+                    [name, f"{metric.psi_score:.4f}", metric.drift_status]
+                    for name, metric in list(self.feature_metrics.items())[:5]
+                ],
+            )
         if self.recommendations:
-            lines.append("\nActions & Recommendations:")
-            for rec in self.recommendations:
-                lines.append(f"  - {rec}")
-        return "\n".join(lines)
+            builder.section("ACTIONS & RECOMMENDATIONS")
+            builder.bullets(self.recommendations)
+        return builder.build()
 
 
 class ObservabilityEngine:

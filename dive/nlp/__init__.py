@@ -55,10 +55,12 @@ from dive.nlp.features import (
     CharNGramRepresentation,
     CountRepresentation,
     EmbeddingRepresentation,
+    LSARepresentation,
     TFIDFRepresentation,
     WordCharUnionRepresentation,
     build_representation,
 )
+
 from dive.nlp.embeddings import (
     EmbeddingCache,
     benchmark_tfidf_vs_embeddings,
@@ -105,6 +107,7 @@ from dive.nlp.monitoring import (
 from dive.nlp.pipeline import NLPPipeline
 from dive.nlp.inference import (
     NLPPredictor,
+    ZeroShotClassifier,
     load_nlp_predictor,
     save_nlp_predictor,
 )
@@ -139,18 +142,21 @@ __all__ = [
     "train_transformer",
     "NLPPredictor",
     "NLPPipeline",
+    "ZeroShotClassifier",
     "save_nlp_predictor",
     "load_nlp_predictor",
     # Features & Models
     "TFIDFRepresentation",
     "CharNGramRepresentation",
     "WordCharUnionRepresentation",
+    "LSARepresentation",
     "BM25Representation",
     "CountRepresentation",
     "EmbeddingRepresentation",
     "build_representation",
     "BASELINE_MODELS",
     "build_baseline_model",
+
     # Transformers
     "TransformerConfig",
     "TRANSFORMER_MODELS",

@@ -20,6 +20,8 @@ from sklearn.model_selection import (
     TimeSeriesSplit,
 )
 
+from dive.utils.report import FAIL, PASS, WARN, ReportBuilder
+
 
 @dataclass
 class ValidationAdvice:
@@ -45,20 +47,30 @@ class ValidationAdvice:
         }
 
     def render(self) -> str:
-        lines = [
-            "VALIDATION ADVISOR RECOMMENDATION",
-            "=================================",
-            f"Recommended Strategy : {self.recommended_strategy}",
-            f"Random Split Safety  : {'✓ SAFE' if self.is_random_safe else '🔴 UNSAFE'}",
-            f"Explanation          : {self.reason}",
-        ]
+        """Render the validation advice through the shared platform renderer."""
+        builder = ReportBuilder("VALIDATION ADVISOR RECOMMENDATION")
+        builder.kv("Recommended Strategy", self.recommended_strategy)
+        builder.status(
+            PASS if self.is_random_safe else FAIL,
+            "Random split is SAFE" if self.is_random_safe else "Random split is UNSAFE",
+        )
+        builder.kv("Explanation", self.reason)
+
         if self.group_stats:
-            lines.append("Group Structure:")
-            lines.append(f"  - Unique Groups    : {self.group_stats.get('n_groups', 0):,}")
-            lines.append(f"  - Rows per Group   : {self.group_stats.get('mean_rows_per_group', 0):.1f} avg (max: {self.group_stats.get('max_rows_per_group', 0)})")
-            if self.group_stats.get("crossing_groups_pct", 0) > 0:
-                lines.append(f"  - Entity Contamination: ⚠ {self.group_stats.get('crossing_groups_pct', 0):.1f}% of groups cross random splits")
-        return "\n".join(lines)
+            builder.section("GROUP STRUCTURE")
+            builder.kv("Unique Groups", f"{self.group_stats.get('n_groups', 0):,}")
+            builder.kv(
+                "Rows per Group",
+                f"{self.group_stats.get('mean_rows_per_group', 0):.1f} avg "
+                f"(max: {self.group_stats.get('max_rows_per_group', 0)})",
+            )
+            crossing_pct = self.group_stats.get("crossing_groups_pct", 0)
+            if crossing_pct > 0:
+                builder.status(
+                    WARN,
+                    f"Entity contamination: {crossing_pct:.1f}% of groups cross random splits",
+                )
+        return builder.build()
 
 
 class ValidationAdvisor:
@@ -217,16 +229,18 @@ class ModelAdvice:
         }
 
     def render(self) -> str:
-        lines = ["MODEL ADVISOR RECOMMENDATIONS", "============================="]
-        lines.append(f"Recommended  : {', '.join(self.recommended) if self.recommended else 'None'}")
-        lines.append(f"Acceptable   : {', '.join(self.acceptable) if self.acceptable else 'None'}")
-        lines.append(f"Deprioritized: {', '.join(self.deprioritized) if self.deprioritized else 'None'}")
-        lines.append(f"Rejected     : {', '.join(self.rejected) if self.rejected else 'None'}")
-        lines.append("")
-        lines.append("Decision Rationales:")
-        for model, reason in self.decisions.items():
-            lines.append(f"  - {model:<18}: {reason}")
-        return "\n".join(lines)
+        """Render the model advice through the shared platform renderer."""
+        builder = ReportBuilder("MODEL ADVISOR RECOMMENDATIONS")
+        builder.kv("Recommended", ", ".join(self.recommended) if self.recommended else "None")
+        builder.kv("Acceptable", ", ".join(self.acceptable) if self.acceptable else "None")
+        builder.kv("Deprioritized", ", ".join(self.deprioritized) if self.deprioritized else "None")
+        builder.kv("Rejected", ", ".join(self.rejected) if self.rejected else "None")
+
+        builder.section("DECISION RATIONALES")
+        # Bullets rather than a table: rationales are full sentences and would be
+        # truncated by the table's per-cell width cap.
+        builder.bullets([f"{model}: {reason}" for model, reason in self.decisions.items()])
+        return builder.build()
 
 
 class ModelAdvisor:

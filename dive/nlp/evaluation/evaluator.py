@@ -3,7 +3,7 @@
 Computes comprehensive metrics for text classification and text regression:
 - Multi-class accuracy, balanced accuracy, Macro/Weighted/Micro F1, Precision, Recall
 - Multi-class Log Loss and Brier score when calibrated probabilities are present
-- Continuous regression metrics: R², MAE, MSE, RMSE
+- Continuous regression metrics: R2, MAE, MSE, RMSE
 """
 
 from __future__ import annotations

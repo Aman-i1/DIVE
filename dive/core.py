@@ -253,6 +253,8 @@ class Dive:
         cv_folds: Optional[int] = None,
         random_state: int = 42,
         time_series: bool = False,
+        time_column: Optional[str] = None,
+        group_column: Optional[str] = None,
         scoring: Optional[str] = None,
         use_pca: Any = "auto",
         tune_top_n: int = 3,
@@ -269,6 +271,8 @@ class Dive:
         self.cv_folds = cv_folds
         self.random_state = random_state
         self.time_series = time_series
+        self.time_column = time_column
+        self.group_column = group_column
         self.scoring = scoring
         self.use_pca = use_pca
         self.tune_top_n = tune_top_n
@@ -400,9 +404,11 @@ class Dive:
             target=self.target,
             mode=self.mode,
             random_state=self.random_state,
-            use_target_encoding=use_advanced and is_available("category_encoders"),
+            use_target_encoding=use_advanced,
             use_freq_encoding=use_advanced,
             outlier_clip=self.outlier_clip,
+            time_column=self.time_column,
+            group_column=self.group_column,
         )
         X_fe = self.feature_engineer_.fit_transform(X_raw, y_encoded)
         self.feature_columns_ = X_fe.columns.tolist()

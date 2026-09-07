@@ -11,6 +11,8 @@ import datetime
 import json
 from typing import Any, Dict, List, Optional, Tuple
 
+from dive.utils.report import ReportBuilder
+
 
 @dataclass
 class LineageNode:
@@ -87,14 +89,17 @@ class LineageGraph:
         return "\n".join(lines)
 
     def render_summary(self) -> str:
-        """Render human-readable text summary of lineage."""
-        lines = [
-            f"EXPERIMENT LINEAGE PROVENANCE: {self.experiment_id}",
-            "==================================================",
-        ]
+        """Render human-readable text summary of lineage.
+
+        Only the text summary goes through the shared renderer; ``render_mermaid``
+        emits machine-readable diagram source and must stay verbatim.
+        """
+        builder = ReportBuilder(f"EXPERIMENT LINEAGE PROVENANCE: {self.experiment_id}")
         for node in self.nodes.values():
-            inps = f" <- [{', '.join(node.inputs)}]" if node.inputs else ""
-            lines.append(f"  [{node.node_type.upper():<16}] {node.name} (id: {node.node_id}){inps}")
+            inputs = f" <- [{', '.join(node.inputs)}]" if node.inputs else ""
+            builder.bullet(
+                f"{node.node_type.upper()}: {node.name} (id: {node.node_id}){inputs}"
+            )
             if node.artifact_hash:
-                lines.append(f"    artifact SHA-256: {node.artifact_hash}")
-        return "\n".join(lines)
+                builder.note(f"artifact SHA-256: {node.artifact_hash}", indent=6)
+        return builder.build()

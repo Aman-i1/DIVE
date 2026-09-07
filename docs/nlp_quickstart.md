@@ -205,18 +205,70 @@ print(drift_report.render())
 
 ---
 
-## 9. CLI Reference
+## 9. Zero-Shot Text Classification (Zero Training Required)
+
+Classify raw text documents into arbitrary candidate categories without any training data or labels:
+
+```python
+from dive.nlp import ZeroShotClassifier
+
+classifier = ZeroShotClassifier(temperature=0.15)
+results = classifier.predict(
+    "Your monthly checking account invoice and tax statement are ready.",
+    candidate_labels=["finance", "sports", "gaming", "medicine"]
+)
+
+print("Predicted:", results[0]["predicted_label"])
+print("Confidence:", f"{results[0]['confidence'] * 100:.1f}%")
+print("All Probabilities:", results[0]["probabilities"])
+```
+
+Via CLI:
+```bash
+dive nlp zero-shot "Your quarterly investment statement is available" --labels "finance,sports,gaming,medicine"
+```
+
+---
+
+## 10. Continuous Semantic Topic Embeddings (LSA)
+
+Compute unit-normalized dense semantic embeddings locally on CPU at >10,000 docs/sec without neural network downloads:
+
+```python
+from dive.nlp.features import LSARepresentation
+
+rep = LSARepresentation(n_components=64, ngram_range=(1, 2))
+X_dense = rep.fit_transform(["Quarterly profits increased by 14% year over year."])
+print("Dense Embedding Shape:", X_dense.shape)  # (1, 64)
+```
+
+---
+
+## 11. Complete NLP CLI Reference
 
 ```bash
-# 1. Profile dataset
+# 1. Inspect dataset schema and candidates
+dive nlp info reviews.csv
+
+# 2. Profile dataset token distributions
 dive nlp profile reviews.csv --text-col review --target-col sentiment
 
-# 2. Autonomous model training
+# 3. Autonomous model training & champion selection
 dive nlp train reviews.csv --text-col review --target-col sentiment --trials 5 --output model.pkl
 
-# 3. Serve REST API
+# 4. Predict on new batches or terminal strings
+dive nlp predict model.pkl -t "Outstanding product quality!" --proba
+
+# 5. Zero-Shot classification
+dive nlp zero-shot "The team won the championship match" --labels "sports,finance,gaming"
+
+# 6. Benchmark latency percentiles
+dive nlp benchmark model.pkl --samples 100
+
+# 7. Serve production REST API
 dive nlp serve model.pkl --port 8000
 
-# 4. Monitor production drift
+# 8. Monitor production vocabulary drift
 dive nlp monitor baseline.csv production_batch.csv --text-col review
 ```
+

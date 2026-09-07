@@ -16,6 +16,7 @@ import numpy as np
 import pandas as pd
 
 from dive.utils.optional import is_available, load_optional
+from dive.utils.report import ReportBuilder
 
 
 @dataclass
@@ -38,33 +39,42 @@ class LocalExplanation:
         }
 
     def render(self) -> str:
-        lines = [
-            "LOCAL PREDICTION EXPLANATION",
-            "============================",
-            f"Prediction  : {self.prediction}",
-        ]
+        """Render the local explanation through the shared platform renderer."""
+        builder = ReportBuilder("LOCAL PREDICTION EXPLANATION")
+        builder.kv("Prediction", self.prediction)
         if self.probability is not None:
-            lines.append(f"Probability : {self.probability:.1%}")
+            builder.kv("Probability", f"{self.probability:.1%}")
 
         if self.positive_contributors:
-            lines.append("Top Positive Contributors (+ Risk):")
-            for pc in self.positive_contributors[:5]:
-                lines.append(f"  - {pc['feature']} = {pc['value']}: +{pc['contribution']:.4f}")
+            builder.section("TOP POSITIVE CONTRIBUTORS (+ RISK)")
+            builder.bullets(
+                [
+                    f"{pc['feature']} = {pc['value']}: +{pc['contribution']:.4f}"
+                    for pc in self.positive_contributors[:5]
+                ]
+            )
 
         if self.negative_contributors:
-            lines.append("Top Negative Contributors (- Risk):")
-            for nc in self.negative_contributors[:5]:
-                lines.append(f"  - {nc['feature']} = {nc['value']}: {nc['contribution']:.4f}")
+            builder.section("TOP NEGATIVE CONTRIBUTORS (- RISK)")
+            builder.bullets(
+                [
+                    f"{nc['feature']} = {nc['value']}: {nc['contribution']:.4f}"
+                    for nc in self.negative_contributors[:5]
+                ]
+            )
 
         if self.counterfactuals:
-            lines.append("")
-            lines.append("Counterfactual Simulations (Model Estimates, Not Guarantees):")
-            for cf in self.counterfactuals:
-                lines.append(
-                    f"  • If '{cf['feature']}' changes {cf['original_value']} -> {cf['simulated_value']}: "
-                    f"Estimated Prob becomes {cf['simulated_probability']:.1%}"
-                )
-        return "\n".join(lines)
+            builder.section("COUNTERFACTUAL SIMULATIONS")
+            builder.note("Model estimates, not guarantees.")
+            builder.bullets(
+                [
+                    f"If '{cf['feature']}' changes {cf['original_value']} -> "
+                    f"{cf['simulated_value']}: estimated probability becomes "
+                    f"{cf['simulated_probability']:.1%}"
+                    for cf in self.counterfactuals
+                ]
+            )
+        return builder.build()
 
 
 class ExplainabilityEngine:

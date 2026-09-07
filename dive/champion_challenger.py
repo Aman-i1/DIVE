@@ -16,6 +16,7 @@ import numpy as np
 from scipy.stats import wilcoxon
 
 from dive.decisions import DecisionLogger
+from dive.utils.report import INFO, PASS, ReportBuilder, normalize_status
 
 
 @dataclass
@@ -48,17 +49,27 @@ class PromotionVerdict:
         }
 
     def render(self) -> str:
-        lines = [
-            "CHAMPION VS. CHALLENGER PROMOTION VERDICT",
-            "=========================================",
-            f"Verdict             : [{self.verdict}]",
-            f"Champion Model      : {self.champion_name} (Mean {self.metric_name}: {self.champion_mean_metric:.4f})",
-            f"Challenger Model    : {self.challenger_name} (Mean {self.metric_name}: {self.challenger_mean_metric:.4f})",
-            f"Metric Delta        : {self.metric_delta:+.4f} (p-value: {self.p_value:.4f})",
-            f"Significance        : {'✓ STATISTICALLY SIGNIFICANT (p < 0.05)' if self.is_statistically_significant else '✗ NOT SIGNIFICANT'}",
-            f"Rationale           : {self.rationale}",
-        ]
-        return "\n".join(lines)
+        """Render the promotion verdict through the shared platform renderer."""
+        builder = ReportBuilder("CHAMPION VS. CHALLENGER PROMOTION VERDICT")
+        # APPROVED -> PASS, REJECTED -> FAIL, INCONCLUSIVE -> INFO via the alias table.
+        builder.status(normalize_status(self.verdict), f"Verdict: {self.verdict}")
+        builder.kv(
+            "Champion Model",
+            f"{self.champion_name} (mean {self.metric_name}: {self.champion_mean_metric:.4f})",
+        )
+        builder.kv(
+            "Challenger Model",
+            f"{self.challenger_name} (mean {self.metric_name}: {self.challenger_mean_metric:.4f})",
+        )
+        builder.kv("Metric Delta", f"{self.metric_delta:+.4f} (p-value: {self.p_value:.4f})")
+        builder.status(
+            PASS if self.is_statistically_significant else INFO,
+            "Statistically significant (p < 0.05)"
+            if self.is_statistically_significant
+            else "Not statistically significant",
+        )
+        builder.kv("Rationale", self.rationale)
+        return builder.build()
 
 
 class ChampionChallengerEvaluator:

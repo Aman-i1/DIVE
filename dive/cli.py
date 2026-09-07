@@ -14,11 +14,12 @@ from __future__ import annotations
 import sys
 import warnings
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Sequence, Tuple
 
 import click
 
 from dive import __version__
+from dive.commands._context import console_from
 from dive.exceptions import DiveError, ConfigError, DataError, ModelError
 from dive.utils.io import (
     ensure_dir,
@@ -52,6 +53,15 @@ def _quiet_third_party_warnings() -> None:
 
 MODES = ("fast", "balanced", "competition")
 
+# Root help layout: one ordered section registry instead of a hardcoded list per
+# section. Adding a capability domain is a one-line change here; the previous
+# three-places-to-edit arrangement is what left `upgrade`, `experiments` and
+# `models` registered but invisible in `dive --help`.
+HELP_SECTIONS: Tuple[Tuple[str, Tuple[str, ...]], ...] = (
+    ("Capability Domains", ("ml", "nlp", "dl")),
+    ("Platform Utilities", ("docs", "deps", "experiments", "models", "upgrade")),
+)
+
 CONTEXT_SETTINGS = {
     "help_option_names": ["-h", "--help"],
     "max_content_width": 100,
@@ -61,8 +71,7 @@ CONTEXT_SETTINGS = {
 # ----------------------------------------------------------------------
 def _console(ctx: click.Context) -> Console:
     """Return the console configured by the root command's global flags."""
-    obj = ctx.obj or {}
-    return get_console(verbose=not obj.get("quiet", False), quiet=obj.get("quiet", False))
+    return console_from(ctx)
 
 
 def _apply_config(
@@ -153,6 +162,11 @@ class DiveGroup(click.Group):
 
     command_class = DiveCommand
 
+    #: Root help layout, assigned to the root group only. Left empty on nested
+    #: groups so they keep click's default flat listing - a subgroup's commands
+    #: are not domains and must not be filed under the root's sections.
+    help_sections: Tuple[Tuple[str, Tuple[str, ...]], ...] = ()
+
     def invoke(self, ctx: click.Context) -> Any:
         try:
             return super().invoke(ctx)
@@ -165,28 +179,45 @@ class DiveGroup(click.Group):
             ctx.exit(1)
 
     def format_commands(self, ctx: click.Context, formatter: click.HelpFormatter) -> None:
-        """Format commands into clean, hierarchical domain and utility sections."""
-        # 1. Capability Domains
-        domains = []
-        for cmd_name in ["ml", "nlp"]:
-            cmd = self.get_command(ctx, cmd_name)
-            if cmd is not None:
-                help_text = cmd.get_short_help_str(limit=formatter.width)
-                domains.append((cmd_name, help_text))
-        if domains:
-            with formatter.section("Capability Domains"):
-                formatter.write_dl(domains)
+        """List commands grouped by :attr:`help_sections`, aliases last.
 
-        # 2. Platform Utilities
-        utilities = []
-        for cmd_name in ["docs", "deps"]:
-            cmd = self.get_command(ctx, cmd_name)
-            if cmd is not None:
-                help_text = cmd.get_short_help_str(limit=formatter.width)
-                utilities.append((cmd_name, help_text))
-        if utilities:
-            with formatter.section("Platform Utilities"):
-                formatter.write_dl(utilities)
+        Anything registered on the root but absent from every section is a flat
+        alias of a domain subcommand (``dive train`` for ``dive ml train``).
+        Those are summarised in one wrapped paragraph rather than marked
+        ``hidden``: each alias and its ``dive ml`` counterpart are the *same*
+        ``Command`` object, so setting ``hidden`` would also erase it from
+        ``dive ml --help``. Listing them keeps a working command discoverable
+        while still leading with the hierarchy.
+        """
+        if not self.help_sections:
+            super().format_commands(ctx, formatter)
+            return
+
+        listed = set()
+        for title, names in self.help_sections:
+            rows = []
+            for name in names:
+                command = self.get_command(ctx, name)
+                if command is None or command.hidden:
+                    continue
+                listed.add(name)
+                rows.append((name, command.get_short_help_str(limit=formatter.width)))
+            if rows:
+                with formatter.section(title):
+                    formatter.write_dl(rows)
+
+        aliases = [
+            name
+            for name in self.list_commands(ctx)
+            if name not in listed and not getattr(self.get_command(ctx, name), "hidden", False)
+        ]
+        if aliases:
+            with formatter.section("Compatibility Aliases"):
+                formatter.write_text(
+                    "Flat forms of the domain subcommands, still accepted: "
+                    + ", ".join(aliases)
+                    + ". Prefer 'dive ml <command>' or 'dive nlp <command>'."
+                )
 
 
 @click.group(cls=DiveGroup, context_settings=CONTEXT_SETTINGS, invoke_without_command=False)
@@ -197,19 +228,25 @@ class DiveGroup(click.Group):
 def cli(ctx: click.Context, quiet: bool, show_traceback: bool) -> None:
     """DIVE - Unified Enterprise AutoML & Natural Language Processing Platform.
 
-    \b
-    Capability Domains:
-      dive ml   -- Tabular & Structured Data Machine Learning
-      dive nlp  -- Natural Language Processing & Text Intelligence
+    Capability domains and platform utilities are listed below; each domain has
+    its own help page with worked examples.
 
     \b
     Quickstart:
-      dive ml --help     # View all tabular ML commands (train, auto, doctor, predict, etc.)
-      dive nlp --help    # View all NLP commands (profile, train, serve, monitor, etc.)
+      dive ml --help     # Tabular ML: train, auto, doctor, predict, gate, ...
+      dive nlp --help    # Text: info, profile, train, predict, serve, monitor
+      dive dl --help     # Deep Learning: info, train, predict, auto, benchmark, doctor
+      dive deps          # Which optional dependencies are installed
     """
     ctx.ensure_object(dict)
     ctx.obj["quiet"] = quiet
     ctx.obj["traceback"] = show_traceback
+
+
+# Only the root group gets the sectioned layout; nested groups keep click's
+# default listing. Names are resolved when help is rendered, so this may be set
+# before the commands themselves are registered further down.
+cli.help_sections = HELP_SECTIONS
 
 
 # ----------------------------------------------------------------------
@@ -225,6 +262,8 @@ def cli(ctx: click.Context, quiet: bool, show_traceback: bool) -> None:
 @click.option("--cv-folds", type=int, default=None, help="Cross-validation folds. Defaults to an adaptive value based on dataset size.")
 @click.option("--random-state", type=int, default=None, help="Random seed for reproducible runs. [default: 42]")
 @click.option("--time-series", is_flag=True, default=None, help="Split chronologically instead of randomly (no shuffling).")
+@click.option("--time-column", default=None, help="Timestamp or date column name for chronological feature generation.")
+@click.option("--group-column", default=None, help="Group or entity column name for entity-level lag & rolling aggregations.")
 @click.option("--no-plots", is_flag=True, default=None, help="Skip PNG plot generation.")
 @click.option("--no-report", is_flag=True, default=None, help="Skip the HTML report.")
 @click.option("--skip-validation", is_flag=True, default=None, help="Do not run the crosscheck suite before training.")
@@ -252,8 +291,8 @@ def train_command(
     console = _console(ctx)
     allowed = {
         "data", "target", "mode", "time_budget", "output", "test_size",
-        "cv_folds", "random_state", "time_series", "no_plots", "no_report",
-        "skip_validation",
+        "cv_folds", "random_state", "time_series", "time_column", "group_column",
+        "no_plots", "no_report", "skip_validation",
     }
     raw = dict(options)
     raw["data"] = data_path
@@ -278,6 +317,8 @@ def _train_settings(settings: Dict[str, Any]) -> Dict[str, Any]:
         "cv_folds": settings.get("cv_folds"),
         "random_state": int(settings.get("random_state") or 42),
         "time_series": bool(settings.get("time_series") or False),
+        "time_column": settings.get("time_column"),
+        "group_column": settings.get("group_column"),
         "make_plots": not bool(settings.get("no_plots") or False),
         "make_report": not bool(settings.get("no_report") or False),
         "run_validation": not bool(settings.get("skip_validation") or False),
@@ -861,6 +902,7 @@ from dive.commands.autopilot import autopilot_command
 from dive.commands.contract import contract_command
 from dive.commands.review import review_command
 from dive.commands.nlp import nlp_command
+from dive.commands.dl import dl_command
 
 # Attach all Tabular ML commands to `dive ml`
 ml_command.add_command(train_command, "train")
@@ -885,6 +927,7 @@ ml_command.add_command(info_command, "info")
 # Register domain command groups on root `dive`
 cli.add_command(ml_command, "ml")
 cli.add_command(nlp_command, "nlp")
+cli.add_command(dl_command, "dl")
 
 # Root aliases for backward compatibility
 cli.add_command(auto_command, "auto")

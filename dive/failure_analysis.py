@@ -24,6 +24,8 @@ from sklearn.metrics import (
     roc_auc_score,
 )
 
+from dive.utils.report import WARN, ReportBuilder
+
 
 @dataclass
 class FailureAnalysisResult:
@@ -47,31 +49,39 @@ class FailureAnalysisResult:
         }
 
     def render(self) -> str:
-        lines = [
-            "MODEL FAILURE & SEGMENT ANALYSIS",
-            "================================",
-        ]
-        lines.append("Overall Evaluation Metrics:")
-        for k, v in self.overall_metrics.items():
-            lines.append(f"  - {k:<20}: {v:.4f}")
+        """Render the failure analysis through the shared platform renderer."""
+        builder = ReportBuilder("MODEL FAILURE & SEGMENT ANALYSIS")
+
+        builder.section("OVERALL EVALUATION METRICS")
+        builder.kvs([(name, f"{value:.4f}") for name, value in self.overall_metrics.items()])
 
         if self.performance_segments:
-            lines.append("")
-            lines.append("Subgroup Performance Segments (Correlation, Not Causation):")
+            builder.section("SUBGROUP PERFORMANCE SEGMENTS")
+            builder.note("These are correlations, not causal explanations.")
             for seg in self.performance_segments:
-                lines.append(
-                    f"  ⚠ Slice '{seg['feature']} == {seg['value']}': "
-                    f"Sample count: {seg['n_samples']}, Metric: {seg['metric_name']} = {seg['metric_value']:.4f} "
-                    f"(vs Baseline {seg['baseline_value']:.4f})"
+                builder.status(
+                    WARN,
+                    f"Slice '{seg['feature']} == {seg['value']}': n={seg['n_samples']}, "
+                    f"{seg['metric_name']} = {seg['metric_value']:.4f} "
+                    f"(baseline {seg['baseline_value']:.4f})",
                 )
 
         if self.worst_predictions:
-            lines.append("")
-            lines.append(f"Top {len(self.worst_predictions)} Worst Predictions:")
-            for wp in self.worst_predictions[:5]:
-                lines.append(f"  - Row {wp.get('index')}: True={wp.get('true')}, Pred={wp.get('pred')}, Error={wp.get('error', 0):.4f}")
+            builder.section(f"TOP {len(self.worst_predictions)} WORST PREDICTIONS")
+            builder.table(
+                ["Row", "True", "Predicted", "Error"],
+                [
+                    [
+                        wp.get("index"),
+                        wp.get("true"),
+                        wp.get("pred"),
+                        f"{wp.get('error', 0):.4f}",
+                    ]
+                    for wp in self.worst_predictions[:5]
+                ],
+            )
 
-        return "\n".join(lines)
+        return builder.build()
 
 
 class ModelFailureAnalyzer:

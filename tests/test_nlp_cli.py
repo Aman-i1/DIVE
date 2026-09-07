@@ -160,9 +160,9 @@ def test_cli_nlp_info(sample_csv: Path) -> None:
     runner = CliRunner()
     result = runner.invoke(cli, ["nlp", "info", str(sample_csv)])
     assert result.exit_code == 0, f"Error: {result.output}"
-    assert "DIVE NLP Dataset Inspector" in result.output
-    assert "Total Rows:" in result.output
-    assert "Detected Text Column:" in result.output
+    assert "DIVE NLP DATASET INSPECTOR" in result.output
+    assert "Rows x columns" in result.output
+    assert "Text column" in result.output
 
 
 def test_cli_nlp_predict(sample_csv: Path, tmp_path: Path) -> None:
@@ -176,8 +176,8 @@ def test_cli_nlp_predict(sample_csv: Path, tmp_path: Path) -> None:
     # 1. Single text prediction
     r_single = runner.invoke(cli, ["nlp", "predict", str(out_model), "--text", "Super fast shipping and great product!", "--proba"])
     assert r_single.exit_code == 0, f"Error: {r_single.output}"
-    assert "Predicted Label:" in r_single.output
-    assert "Probabilities:" in r_single.output
+    assert "Predicted label" in r_single.output
+    assert "CLASS PROBABILITIES" in r_single.output
 
     # 2. Batch file prediction
     out_preds = tmp_path / "predictions.csv"
@@ -197,4 +197,4 @@ def test_cli_nlp_benchmark(sample_csv: Path, tmp_path: Path) -> None:
 
     r_bench = runner.invoke(cli, ["nlp", "benchmark", str(out_model), "--samples", "10"])
     assert r_bench.exit_code == 0, f"Error: {r_bench.output}"
-    assert "p50 (Median Latency):" in r_bench.output
+    assert "p50 (median)" in r_bench.output

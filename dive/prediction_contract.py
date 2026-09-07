@@ -22,6 +22,7 @@ import numpy as np
 import pandas as pd
 
 from dive.decisions import DecisionLogger
+from dive.utils.report import ReportBuilder
 
 
 @dataclass
@@ -69,22 +70,27 @@ class PredictionContract:
         return cls(**data)
 
     def render(self) -> str:
-        lines = [
-            "FORMAL PREDICTION CONTRACT",
-            "==========================",
-            f"Target Column            : {self.target}",
-            f"Problem Type             : {self.problem_type}",
-            f"Entity / Group Column    : {self.entity}",
-            f"Prediction Timestamp     : {self.prediction_time}",
-            f"Prediction Horizon       : {self.prediction_horizon}",
-            f"Allowed Info Until       : {self.allowed_information_until}",
-            f"Evaluation Metric        : {self.evaluation_metric}",
-            f"Deployment Context       : {self.deployment_context}",
-            f"Contract Origin          : {'INFERRED STATISTICALLY' if self.is_inferred else 'USER SPECIFIED'}",
-        ]
+        """Render the prediction contract through the shared platform renderer."""
+        builder = ReportBuilder("FORMAL PREDICTION CONTRACT")
+        builder.kvs(
+            [
+                ("Target Column", self.target),
+                ("Problem Type", self.problem_type),
+                ("Entity / Group Column", self.entity),
+                ("Prediction Timestamp", self.prediction_time),
+                ("Prediction Horizon", self.prediction_horizon),
+                ("Allowed Info Until", self.allowed_information_until),
+                ("Evaluation Metric", self.evaluation_metric),
+                ("Deployment Context", self.deployment_context),
+                (
+                    "Contract Origin",
+                    "INFERRED STATISTICALLY" if self.is_inferred else "USER SPECIFIED",
+                ),
+            ]
+        )
         if self.inferred_attributes:
-            lines.append(f"Inferred Fields          : {', '.join(self.inferred_attributes)}")
-        return "\n".join(lines)
+            builder.kv("Inferred Fields", ", ".join(self.inferred_attributes))
+        return builder.build()
 
 
 class PredictionContractEngine:

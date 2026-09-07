@@ -16,18 +16,39 @@ import threading
 from typing import Any, Dict, List, Optional, TextIO
 
 # Preferred glyph -> ASCII fallback.
+#
+# Every non-ASCII character the package prints MUST be registered here. A module
+# that embeds a raw glyph in an f-string bypasses `_stream_supports_unicode` and
+# gets mangled into "?" by `_write`'s UnicodeEncodeError handler on legacy code
+# pages (cp1252 on Windows) - exactly the class of bug this table prevents.
 _SYMBOLS: Dict[str, tuple] = {
+    # Status markers.
     "ok": ("✓", "[ok]"),          # check mark
     "fail": ("✗", "[fail]"),      # ballot X
-    "warn": ("!", "[warn]"),      # warning sign
-    "up": ("^", "^"),             # up arrow
-    "arrow": ("->", "->"),        # right arrow
-    "star": ("*", "*"),           # star
-    "bullet": ("-", "-"),         # bullet
-    "rule": ("-", "-"),           # box drawing horizontal
-    "box_top": ("+", "+"),
-    "box_bot": ("+", "+"),
-    "box_vert": ("|", "|"),
+    "warn": ("⚠", "[warn]"),      # warning sign
+    "up": ("↑", "^"),             # up arrow
+    "down": ("↓", "v"),           # down arrow
+    "arrow": ("→", "->"),         # right arrow
+    "star": ("★", "*"),           # star
+    "bullet": ("•", "-"),         # bullet
+    # Rules and box drawing.
+    "rule": ("─", "-"),           # box drawing horizontal
+    "rule_heavy": ("═", "="),     # double horizontal
+    "box_h": ("─", "-"),
+    "box_v": ("│", "|"),
+    "box_tl": ("┌", "+"),
+    "box_tr": ("┐", "+"),
+    "box_bl": ("└", "+"),
+    "box_br": ("┘", "+"),
+    # Retained aliases so pre-existing callers keep working.
+    "box_top": ("┌", "+"),
+    "box_bot": ("└", "+"),
+    "box_vert": ("│", "|"),
+    # Meters and units.
+    "bar_fill": ("█", "#"),
+    "bar_empty": ("░", "."),
+    "plus_minus": ("±", "+/-"),
+    "squared": ("²", "^2"),
 }
 
 # npm-style spinner frames
@@ -349,15 +370,48 @@ class Console:
             self._write(f"     {self.paint(subtitle, Style.MUTED)}")
         self._write("")
 
+    def report(self, report: Any) -> None:
+        """Print a ``ReportBuilder`` (or any object rendering to a string).
+
+        Accepts the builder itself, anything exposing ``build()``/``render()``, or
+        a plain string, so call sites do not have to care which they hold.
+        """
+        if self.quiet or report is None:
+            return
+        for attribute in ("build", "render"):
+            method = getattr(report, attribute, None)
+            if callable(method):
+                self._write(method())
+                return
+        self._write(str(report))
+
 
 _DEFAULT: Optional[Console] = None
 
 
-def get_console(verbose: bool = True, quiet: bool = False) -> Console:
+def get_console(verbose: Optional[bool] = None, quiet: Optional[bool] = None) -> Console:
+    """Return the process-wide console, creating it on first use.
+
+    Both flags default to ``None`` so a bare ``get_console()`` inherits whatever
+    verbosity the CLI already established. They used to default to
+    ``verbose=True, quiet=False``, which meant any module calling
+    ``get_console()`` with no arguments silently cleared a user's ``--quiet``.
+    """
     global _DEFAULT
     if _DEFAULT is None:
-        _DEFAULT = Console(verbose=verbose, quiet=quiet)
-    else:
+        _DEFAULT = Console(
+            verbose=True if verbose is None else verbose,
+            quiet=False if quiet is None else quiet,
+        )
+        return _DEFAULT
+    if verbose is not None:
         _DEFAULT.verbose = verbose
+    if quiet is not None:
         _DEFAULT.quiet = quiet
     return _DEFAULT
+
+
+def reset_console() -> None:
+    """Drop the cached console. Used by tests to isolate verbosity state."""
+    global _DEFAULT
+    _DEFAULT = None

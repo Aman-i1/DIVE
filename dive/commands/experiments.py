@@ -6,6 +6,7 @@ from typing import Any, List, Optional
 
 from dive.experiments import ExperimentTracker
 from dive.utils.logging import Console
+from dive.utils.report import ReportBuilder
 
 
 def run_experiments_list(console: Console) -> None:
@@ -15,18 +16,21 @@ def run_experiments_list(console: Console) -> None:
         console.info("No experiments tracked yet. Run `dive train` to record experiments.")
         return
 
-    console.rule("Tracked Experiments")
-    lines = [f"{'ID':<12} {'Model':<16} {'Dataset Hash':<16} {'Time (s)':<10} {'RAM (MB)':<10}"]
-    lines.append("-" * 68)
-    for exp in exps:
-        lines.append(
-            f"{exp.get('experiment_id', ''):<12} "
-            f"{exp.get('model_name', ''):<16} "
-            f"{exp.get('dataset_hash', ''):<16} "
-            f"{exp.get('training_time_seconds', 0):<10.1f} "
-            f"{exp.get('peak_memory_mb', 0):<10.1f}"
-        )
-    console.print("\n".join(lines))
+    builder = ReportBuilder("TRACKED EXPERIMENTS", console=console)
+    builder.table(
+        ["ID", "Model", "Dataset Hash", "Time (s)", "RAM (MB)"],
+        [
+            [
+                exp.get("experiment_id", ""),
+                exp.get("model_name", ""),
+                exp.get("dataset_hash", ""),
+                f"{exp.get('training_time_seconds', 0):.1f}",
+                f"{exp.get('peak_memory_mb', 0):.1f}",
+            ]
+            for exp in exps
+        ],
+    )
+    console.report(builder)
 
 
 def run_experiments_show(console: Console, experiment_id: str) -> None:
@@ -36,9 +40,9 @@ def run_experiments_show(console: Console, experiment_id: str) -> None:
         console.error(f"Experiment '{experiment_id}' not found.")
         return
 
-    console.rule(f"Experiment {experiment_id}")
-    for k, v in exp.items():
-        console.print(f"  {k:<24}: {v}")
+    builder = ReportBuilder(f"EXPERIMENT {experiment_id}", console=console)
+    builder.kvs(exp)
+    console.report(builder)
 
 
 def run_experiments_compare(console: Console, experiment_ids: List[str]) -> None:
@@ -48,5 +52,6 @@ def run_experiments_compare(console: Console, experiment_ids: List[str]) -> None
         console.error("No valid experiments found for comparison.")
         return
 
-    console.rule("Experiment Comparison")
-    console.print(df_cmp.to_string(index=False))
+    builder = ReportBuilder("EXPERIMENT COMPARISON", console=console)
+    builder.dataframe(df_cmp, max_rows=len(df_cmp))
+    console.report(builder)

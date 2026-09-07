@@ -15,6 +15,7 @@ import numpy as np
 import pandas as pd
 
 from dive.exceptions import TargetError
+from dive.utils.report import ReportBuilder
 
 # A class-frequency ratio above this is treated as imbalanced.
 IMBALANCE_THRESHOLD = 3.0
@@ -263,22 +264,27 @@ class DataIntelligence:
 
 
 def summarize_profile(profile: Dict[str, Any]) -> List[str]:
-    """Render a profile as human-readable lines for the console and reports."""
-    lines = [
-        f"Rows                : {profile.get('n_samples')}",
-        f"Features            : {profile.get('n_features')} "
+    """Render a profile as human-readable lines for the console and reports.
+
+    Returns a list of lines (unchanged public contract) but composes them with
+    :class:`~dive.utils.report.ReportBuilder` so the key alignment matches every
+    other DIVE report.
+    """
+    builder = ReportBuilder()
+    builder.kv("Rows", profile.get("n_samples"))
+    builder.kv(
+        "Features",
+        f"{profile.get('n_features')} "
         f"({profile.get('n_numeric')} numeric, {profile.get('n_categorical')} categorical)",
-        f"Problem type        : {profile.get('problem_type')}",
-    ]
+    )
+    builder.kv("Problem type", profile.get("problem_type"))
     if profile.get("problem_type") == "classification":
-        lines.append(f"Classes             : {profile.get('n_classes')}")
+        builder.kv("Classes", profile.get("n_classes"))
         ratio = profile.get("imbalance_ratio")
         if ratio:
-            lines.append(
-                f"Class imbalance     : {ratio:.1f}:1 "
-                f"({'imbalanced' if profile.get('is_imbalanced') else 'acceptable'})"
-            )
-    lines.append(f"Missing values      : {profile.get('total_missing_pct', 0):.2f}% of cells")
+            verdict = "imbalanced" if profile.get("is_imbalanced") else "acceptable"
+            builder.kv("Class imbalance", f"{ratio:.1f}:1 ({verdict})")
+    builder.kv("Missing values", f"{profile.get('total_missing_pct', 0):.2f}% of cells")
     for label, key in (
         ("Constant columns", "constant_cols"),
         ("ID-like columns", "id_like_cols"),
@@ -288,5 +294,5 @@ def summarize_profile(profile: Dict[str, Any]) -> List[str]:
         if values:
             preview = ", ".join(map(str, values[:6]))
             more = f" (+{len(values) - 6} more)" if len(values) > 6 else ""
-            lines.append(f"{label:<20}: {preview}{more}")
-    return lines
+            builder.kv(label, f"{preview}{more}")
+    return builder.build().split("\n")

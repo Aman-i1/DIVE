@@ -22,6 +22,7 @@ from dive.decisions import DecisionLogger
 from dive.failure_segments import FailureSegmentsReport
 from dive.model_stress import StressTestReport
 from dive.prediction_contract import PredictionContract
+from dive.utils.report import ReportBuilder
 
 
 @dataclass
@@ -59,31 +60,32 @@ class SeniorReviewReport:
             json.dump(self.to_dict(), f, indent=2)
 
     def render(self) -> str:
-        border = "============================================================"
-        lines = [
-            border,
-            "                   DIVE SENIOR ML REVIEW",
-            border,
-        ]
-        for dim, status in self.review_matrix.items():
-            lines.append(f"{dim:<32} : [{status}]")
+        """Render the senior review through the shared platform renderer."""
+        builder = ReportBuilder(
+            "DIVE SENIOR ML REVIEW",
+            subtitle=f"{self.problem_type} on target '{self.target}'",
+        )
 
-        lines.append("-" * 60)
-        lines.append(f"FINAL DECISION                   : [{self.final_decision}] (Confidence: {self.confidence})")
-        lines.append(f"Champion Model                   : {self.champion_model} (Score: {self.primary_score:.4f})")
+        builder.section("REVIEW MATRIX")
+        for dimension, status in self.review_matrix.items():
+            builder.status(status, dimension)
+
+        builder.section("FINAL DECISION")
+        builder.status(
+            self.final_decision,
+            f"{self.final_decision} (confidence: {self.confidence})",
+        )
+        builder.kv("Champion Model", f"{self.champion_model} (score: {self.primary_score:.4f})")
 
         if self.top_risks:
-            lines.append("\nTop Identified Risks:")
-            for idx, risk in enumerate(self.top_risks, start=1):
-                lines.append(f"  {idx}. {risk}")
+            builder.section("TOP IDENTIFIED RISKS")
+            builder.numbered(self.top_risks)
 
         if self.required_actions:
-            lines.append("\nRequired Actions Before Deployment:")
-            for idx, act in enumerate(self.required_actions, start=1):
-                lines.append(f"  {idx}. {act}")
+            builder.section("REQUIRED ACTIONS BEFORE DEPLOYMENT")
+            builder.numbered(self.required_actions)
 
-        lines.append(border)
-        return "\n".join(lines)
+        return builder.build()
 
 
 class SeniorReviewEngine:

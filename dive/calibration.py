@@ -17,6 +17,8 @@ from sklearn.linear_model import LogisticRegression
 from sklearn.isotonic import IsotonicRegression
 from sklearn.metrics import brier_score_loss, f1_score
 
+from dive.utils.report import INFO, PASS, ReportBuilder
+
 
 @dataclass
 class CalibrationReport:
@@ -46,16 +48,21 @@ class CalibrationReport:
         }
 
     def render(self) -> str:
-        lines = [
-            "PROBABILITY CALIBRATION REPORT",
-            "==============================",
-            f"Method              : {self.method.upper()}",
-            f"Brier Score         : {self.brier_before:.4f} -> {self.brier_after:.4f} "
-            f"({'✓ IMPROVED' if self.brier_after < self.brier_before else 'NO CHANGE'})",
-            f"Expected Calib Error: {self.ece_before:.4f} -> {self.ece_after:.4f}",
-            f"Optimal Threshold   : {self.optimal_threshold:.4f} (Peak F1: {self.best_f1:.4f})",
-        ]
-        return "\n".join(lines)
+        """Render the calibration report through the shared platform renderer."""
+        improved = self.brier_after < self.brier_before
+        builder = ReportBuilder("PROBABILITY CALIBRATION REPORT")
+        builder.kv("Method", self.method.upper())
+        builder.kv("Brier Score", f"{self.brier_before:.4f} -> {self.brier_after:.4f}")
+        builder.status(
+            PASS if improved else INFO,
+            "Calibration improved the Brier score" if improved else "No Brier score change",
+        )
+        builder.kv("Expected Calib Error", f"{self.ece_before:.4f} -> {self.ece_after:.4f}")
+        builder.kv(
+            "Optimal Threshold",
+            f"{self.optimal_threshold:.4f} (peak F1: {self.best_f1:.4f})",
+        )
+        return builder.build()
 
 
 class ProbabilityCalibrator:

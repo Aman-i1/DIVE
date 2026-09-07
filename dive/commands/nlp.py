@@ -8,18 +8,20 @@ Provides user-facing terminal commands for Natural Language Processing:
 - `dive nlp serve <model_path>`: Launch production REST API model server with Swagger UI.
 - `dive nlp monitor <ref_path> <curr_path>`: Audit production distribution shift, length drift, and vocabulary OOV rate.
 - `dive nlp benchmark <model_path>`: Benchmark latency percentiles (p50, p95, p99) and throughput.
+
+Output goes through :class:`~dive.utils.logging.Console` and
+:class:`~dive.utils.report.ReportBuilder` - the same primitives the tabular ML
+domain uses - so both domains render one grammar. Every command resolves its
+console from the click context so the root ``--quiet`` flag is honoured.
 """
 
 from __future__ import annotations
 
-import sys
 import time
-from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, List, Optional
 
 import click
 import numpy as np
-import pandas as pd
 
 from dive.nlp import (
     AutoNLP,
@@ -30,9 +32,32 @@ from dive.nlp import (
     save_nlp_predictor,
     serve_nlp_model,
 )
-from dive.nlp.optimization.onnx import export_nlp_to_onnx
-from dive.utils.io import load_dataframe
-from dive.utils.logging import get_console
+from dive.commands._context import console_from
+from dive.utils.logging import Console
+from dive.utils.report import ReportBuilder
+
+
+def _console(ctx: click.Context) -> Console:
+    """Resolve the console from the root context so ``--quiet`` is respected.
+
+    Delegates to the shared helper in :mod:`dive.commands._context`. Calling bare
+    ``get_console()`` here is what used to make ``dive --quiet nlp ...`` print
+    everything anyway.
+    """
+    return console_from(ctx)
+
+
+def _class_names(predictor: Any, n_classes: int) -> List[str]:
+    """Resolve display names for probability columns.
+
+    ``class_names`` and ``classes_`` are both optional on a predictor and may be
+    ``None``, which previously raised in the interactive branch.
+    """
+    for attribute in ("class_names", "classes_"):
+        candidate = getattr(predictor, attribute, None)
+        if candidate is not None and len(candidate):
+            return [str(name) for name in candidate]
+    return [f"class_{index}" for index in range(n_classes)]
 
 
 @click.group("nlp")
@@ -69,7 +94,8 @@ def nlp_command() -> None:
 # ----------------------------------------------------------------------
 @nlp_command.command("info")
 @click.argument("data_path", type=click.Path(exists=True, dir_okay=False))
-def info_cmd(data_path: str) -> None:
+@click.pass_context
+def info_cmd(ctx: click.Context, data_path: str) -> None:
     """Inspect dataset schema, detected text/target columns, and sample preview.
 
     \b
@@ -78,38 +104,55 @@ def info_cmd(data_path: str) -> None:
       dive nlp info comments.jsonl
       dive nlp info data/dataset.parquet
     """
-    console = get_console()
-    console.rule("[bold cyan]DIVE NLP Dataset Inspector[/bold cyan]")
-
+    console = _console(ctx)
     ds = NLPDataset.from_file(data_path)
-    df = ds.to_dataframe()
+    frame = ds.to_dataframe()
 
-    console.print(f"[bold green]✓[/bold green] Source File: [cyan]{data_path}[/cyan]")
-    console.print(f"[bold green]✓[/bold green] Total Rows: [cyan]{len(df):,}[/cyan]")
-    console.print(f"[bold green]✓[/bold green] Columns: [cyan]{', '.join(df.columns)}[/cyan]")
-    console.print(f"[bold green]✓[/bold green] Detected Text Column: [bold yellow]{'text' if 'text' in df.columns else df.columns[0]}[/bold yellow]")
+    builder = ReportBuilder("DIVE NLP DATASET INSPECTOR", console=console)
+    builder.kv("Source file", data_path)
+    builder.kv("Rows x columns", f"{len(frame):,} x {len(frame.columns)}")
+    builder.kv("Columns", ", ".join(map(str, frame.columns)))
+
+    # Report what the loader actually resolved rather than guessing again. The
+    # previous implementation printed `'text' if 'text' in columns else
+    # columns[0]`, which could name a column the loader had not chosen - or, for
+    # the target, one absent from the frame entirely.
+    builder.kv("Text column", ds.text_column or "(resolved positionally)")
     if ds.has_labels:
-        unique_labels = sorted(list(set(ds.labels)))
-        n_classes = len(unique_labels)
-        console.print(f"[bold green]✓[/bold green] Detected Target Column: [bold yellow]{'label' if 'label' in df.columns else 'labels'}[/bold yellow] ([cyan]{n_classes} classes[/cyan]: {unique_labels[:8]}{'...' if n_classes > 8 else ''})")
+        unique_labels = sorted({str(label) for label in ds.labels})
+        preview = ", ".join(unique_labels[:8])
+        if len(unique_labels) > 8:
+            preview += ", ..."
+        builder.kv(
+            "Target column",
+            f"{ds.target_column or '(auto-detected)'} "
+            f"[{len(unique_labels)} classes: {preview}]",
+        )
     else:
-        console.print("[bold yellow]![/bold yellow] Target Column: [italic dim]None (unsupervised / raw text collection)[/italic dim]")
+        builder.kv("Target column", "none (unsupervised / raw text collection)")
 
     stats = ds.summary_stats()
-    console.print(f"[bold green]✓[/bold green] Document Lengths: Avg [cyan]{stats['avg_word_count']} words[/cyan] (Median: [cyan]{stats['median_word_count']}[/cyan]), Avg [cyan]{stats['avg_char_length']} chars[/cyan]")
+    builder.kv(
+        "Document lengths",
+        f"avg {stats['avg_word_count']} words "
+        f"(median {stats['median_word_count']}), avg {stats['avg_char_length']} chars",
+    )
 
-    console.print("\n[bold]Preview Sample Records:[/bold]")
-    sample_preview = df.head(3)
-    for idx, row in sample_preview.iterrows():
-        txt_snippet = str(row.get("text", row.iloc[0]))[:100].replace("\n", " ")
-        lbl_info = f" | [bold magenta]Target:[/bold magenta] {row.get('label', row.iloc[1])}" if ds.has_labels and len(row) > 1 else ""
-        console.print(f"  [dim]#{idx + 1}[/dim] {txt_snippet}...{lbl_info}")
+    builder.section("PREVIEW SAMPLE RECORDS")
+    for position in range(min(3, len(ds.texts))):
+        snippet = str(ds.texts[position])[:100].replace("\n", " ")
+        label = f"  ->  {ds.labels[position]}" if ds.has_labels else ""
+        builder.bullet(f"#{position + 1} {snippet}...{label}")
+    if ds.text_column is None:
+        builder.note("Text column was resolved positionally; pass -x to name it explicitly.")
 
-    console.print("\n[bold cyan]Suggested Next Commands:[/bold cyan]")
-    console.print(f"  [dim]# 1. Run deep text profiling report:[/dim]")
-    console.print(f"  dive nlp profile \"{data_path}\"")
-    console.print(f"  [dim]# 2. Train champion AutoNLP model:[/dim]")
-    console.print(f"  dive nlp train \"{data_path}\" --trials 5 --output champion.pkl\n")
+    builder.next_steps(
+        [
+            f'dive nlp profile "{data_path}"',
+            f'dive nlp train "{data_path}" --trials 5 --output champion.pkl',
+        ]
+    )
+    console.report(builder)
 
 
 # ----------------------------------------------------------------------
@@ -119,7 +162,13 @@ def info_cmd(data_path: str) -> None:
 @click.argument("data_path", type=click.Path(exists=True, dir_okay=False))
 @click.option("--text-col", "-x", default=None, help="Name of the text feature column.")
 @click.option("--target-col", "-y", default=None, help="Name of the target label column.")
-def profile_cmd(data_path: str, text_col: Optional[str], target_col: Optional[str]) -> None:
+@click.pass_context
+def profile_cmd(
+    ctx: click.Context,
+    data_path: str,
+    text_col: Optional[str],
+    target_col: Optional[str],
+) -> None:
     """Profile NLP dataset, character/token distributions, and label audits.
 
     \b
@@ -128,12 +177,9 @@ def profile_cmd(data_path: str, text_col: Optional[str], target_col: Optional[st
       dive nlp profile reviews.tsv -x review_text -y sentiment
       dive nlp profile tickets.jsonl --text-col description --target-col category
     """
-    console = get_console()
-    console.rule("[bold cyan]DIVE NLP Dataset Profiling[/bold cyan]")
+    console = _console(ctx)
     ds = NLPDataset.from_file(data_path, text_column=text_col, target_column=target_col)
-    profiler = NLPProfiler()
-    report = profiler.profile(ds)
-    console.print(report.render())
+    console.report(NLPProfiler().profile(ds))
 
 
 # ----------------------------------------------------------------------
@@ -151,7 +197,9 @@ def profile_cmd(data_path: str, text_col: Optional[str], target_col: Optional[st
     default="balanced",
     help="Multi-objective optimization criterion (balanced, accuracy, latency).",
 )
+@click.pass_context
 def train_cmd(
+    ctx: click.Context,
     data_path: str,
     target_col: Optional[str],
     text_col: Optional[str],
@@ -167,17 +215,18 @@ def train_cmd(
       dive nlp train dataset.csv --trials 10 --optimize-for accuracy --output ./best_model.pkl
       dive nlp train reviews.tsv -x text -y sentiment --trials 5 --output model.pkl
     """
-    console = get_console()
-    console.rule("[bold cyan]DIVE AutoNLP Autonomous Search[/bold cyan]")
+    console = _console(ctx)
+    console.rule("DIVE AutoNLP Autonomous Search")
     engine = AutoNLP(max_trials=trials, optimize_for=optimize_for)
     predictor, leaderboard = engine.fit(
         data=data_path,
         target_column=target_col,
         text_column=text_col,
     )
-    console.print(leaderboard.render())
+    console.report(leaderboard)
     save_nlp_predictor(predictor, output)
     console.success(f"Champion predictor saved to: {output}")
+    console.print(f"  Next: dive nlp predict {output} --data <new_rows.csv>")
 
 
 # ----------------------------------------------------------------------
@@ -190,7 +239,9 @@ def train_cmd(
 @click.option("--text-col", "-x", default=None, help="Text column name in data file.")
 @click.option("--output", "-o", "output_path", default=None, help="Optional output CSV path to write predictions.")
 @click.option("--proba", is_flag=True, default=False, help="Include class probability distributions in output.")
+@click.pass_context
 def predict_cmd(
+    ctx: click.Context,
     model_path: str,
     data_path: Optional[str],
     single_text: Optional[str],
@@ -211,78 +262,98 @@ def predict_cmd(
       # Interactive terminal prediction machine
       dive nlp predict model.pkl
     """
-    console = get_console()
-    console.rule("[bold cyan]DIVE NLP Prediction Engine[/bold cyan]")
+    console = _console(ctx)
+    console.rule("DIVE NLP Prediction Engine")
 
     predictor = load_nlp_predictor(model_path)
     model_name = getattr(predictor, "model_name", "NLPPredictor")
-    console.print(f"[bold green]✓[/bold green] Loaded Predictor: [cyan]{model_path}[/cyan] ([dim]{model_name}[/dim])")
+    console.kv("Predictor", f"{model_path} ({model_name})")
 
     # 1. Single text prediction
     if single_text is not None:
-        pred = predictor.predict([single_text])[0]
-        console.print(f"\n[bold]Input Text:[/bold] {single_text}")
-        console.print(f"[bold green]Predicted Label:[/bold green] [bold yellow]{pred}[/bold yellow]")
+        prediction = predictor.predict([single_text])[0]
+        builder = ReportBuilder(console=console)
+        builder.kv("Input text", single_text)
+        builder.kv("Predicted label", prediction)
         if proba and predictor.has_proba:
             probabilities = predictor.predict_proba([single_text])[0]
-            classes = predictor.class_names or [f"class_{i}" for i in range(len(probabilities))]
-            prob_dict = {str(c): round(float(p), 4) for c, p in zip(classes, probabilities)}
-            console.print(f"[bold cyan]Probabilities:[/bold cyan] {prob_dict}")
+            builder.section("CLASS PROBABILITIES")
+            for class_name, probability in zip(
+                _class_names(predictor, len(probabilities)), probabilities
+            ):
+                builder.bar(str(class_name), float(probability), 1.0)
+        console.report(builder)
         return
 
     # 2. Batch dataset prediction
     if data_path is not None:
         ds = NLPDataset.from_file(data_path, text_column=text_col)
-        console.print(f"[bold green]✓[/bold green] Scoring [cyan]{len(ds):,}[/cyan] documents...")
-        start_t = time.perf_counter()
-        preds = predictor.predict(ds.texts)
-        dur_ms = (time.perf_counter() - start_t) * 1000.0
-        throughput = len(ds.texts) / max(dur_ms / 1000.0, 1e-6)
+        started = time.perf_counter()
+        predictions = predictor.predict(ds.texts)
+        elapsed_ms = (time.perf_counter() - started) * 1000.0
+        throughput = len(ds.texts) / max(elapsed_ms / 1000.0, 1e-6)
 
-        df_out = ds.to_dataframe()
-        df_out["predicted_label"] = preds
+        frame = ds.to_dataframe()
+        frame["predicted_label"] = predictions
 
         if proba and predictor.has_proba:
-            probs = predictor.predict_proba(ds.texts)
-            classes = predictor.class_names or [f"class_{i}" for i in range(probs.shape[1])]
-            for idx, c in enumerate(classes):
-                df_out[f"proba_{c}"] = probs[:, idx]
+            probabilities = predictor.predict_proba(ds.texts)
+            for index, class_name in enumerate(
+                _class_names(predictor, probabilities.shape[1])
+            ):
+                frame[f"proba_{class_name}"] = probabilities[:, index]
 
-        console.success(f"Scored {len(ds):,} documents in {dur_ms:.1f} ms ({throughput:,.1f} docs/sec)")
+        console.success(
+            f"Scored {len(ds):,} documents in {elapsed_ms:.1f} ms "
+            f"({throughput:,.1f} docs/sec)"
+        )
 
         if output_path is not None:
-            df_out.to_csv(output_path, index=False)
+            frame.to_csv(output_path, index=False)
             console.success(f"Saved predictions to: {output_path}")
-        else:
-            console.print("\n[bold]Sample Predictions Preview:[/bold]")
-            for i in range(min(5, len(df_out))):
-                txt_preview = str(ds.texts[i])[:70].replace("\n", " ")
-                console.print(f"  [dim]#{i + 1}[/dim] \"{txt_preview}...\" -> [bold yellow]{preds[i]}[/bold yellow]")
+            return
+
+        builder = ReportBuilder("SAMPLE PREDICTIONS", console=console)
+        builder.table(
+            ["#", "Text", "Predicted"],
+            [
+                [
+                    position + 1,
+                    str(ds.texts[position])[:60].replace("\n", " "),
+                    predictions[position],
+                ]
+                for position in range(min(5, len(frame)))
+            ],
+        )
+        console.report(builder)
         return
 
     # 3. Interactive prediction prompt
-    console.print("\n[bold cyan]Interactive NLP Prediction Machine[/bold cyan]")
-    console.print("[dim]Type any text and press Enter to score. Type 'exit' or 'quit' to stop.[/dim]\n")
+    console.print("")
+    console.print("  Interactive NLP prediction. Type text and press Enter to score.")
+    console.print("  Type 'exit', 'quit', or 'q' to stop.")
+    console.print("")
 
     while True:
         try:
             line = input("dive-nlp > ").strip()
         except (KeyboardInterrupt, EOFError):
-            console.print("\nExiting interactive machine.")
+            console.print("")
+            console.print("Exiting interactive mode.")
             break
 
         if not line or line.lower() in ("exit", "quit", "q"):
-            console.print("Exiting interactive machine.")
+            console.print("Exiting interactive mode.")
             break
 
-        pred = predictor.predict([line])[0]
-        prob_str = ""
+        prediction = predictor.predict([line])[0]
+        confidence = ""
         if predictor.has_proba:
             probabilities = predictor.predict_proba([line])[0]
-            classes = predictor.classes_
-            top_prob = max(probabilities)
-            prob_str = f" [dim](confidence: {top_prob:.1%})[/dim]"
-        console.print(f"  --> [bold yellow]{pred}[/bold yellow]{prob_str}\n")
+            if len(probabilities):
+                confidence = f"  (confidence: {max(probabilities):.1%})"
+        console.print(f"  {console.symbol('arrow')} {prediction}{confidence}")
+        console.print("")
 
 
 # ----------------------------------------------------------------------
@@ -292,7 +363,8 @@ def predict_cmd(
 @click.argument("model_path", type=click.Path(exists=True, dir_okay=False))
 @click.option("--host", default="127.0.0.1", help="Host interface to bind REST server.")
 @click.option("--port", default=8000, type=int, help="Port to listen for requests.")
-def serve_cmd(model_path: str, host: str, port: int) -> None:
+@click.pass_context
+def serve_cmd(ctx: click.Context, model_path: str, host: str, port: int) -> None:
     """Launch production REST API server for a saved NLP predictor.
 
     \b
@@ -309,8 +381,8 @@ def serve_cmd(model_path: str, host: str, port: int) -> None:
       dive nlp serve champion.pkl --port 8000
       dive nlp serve model.pkl --host 0.0.0.0 --port 8080
     """
-    console = get_console()
-    console.rule(f"[bold cyan]Launching DIVE NLP Model Server on {host}:{port}[/bold cyan]")
+    console = _console(ctx)
+    console.rule(f"DIVE NLP Model Server - {host}:{port}")
     predictor = load_nlp_predictor(model_path)
     serve_nlp_model(predictor, host=host, port=port)
 
@@ -323,7 +395,14 @@ def serve_cmd(model_path: str, host: str, port: int) -> None:
 @click.argument("curr_path", type=click.Path(exists=True, dir_okay=False))
 @click.option("--text-col", "-x", default=None, help="Text column name.")
 @click.option("--oov-threshold", default=0.15, type=float, help="OOV rate alert threshold.")
-def monitor_cmd(ref_path: str, curr_path: str, text_col: Optional[str], oov_threshold: float) -> None:
+@click.pass_context
+def monitor_cmd(
+    ctx: click.Context,
+    ref_path: str,
+    curr_path: str,
+    text_col: Optional[str],
+    oov_threshold: float,
+) -> None:
     """Audit production distribution shift, length drift, and vocabulary OOV rate.
 
     \b
@@ -331,14 +410,12 @@ def monitor_cmd(ref_path: str, curr_path: str, text_col: Optional[str], oov_thre
       dive nlp monitor baseline.csv production.csv
       dive nlp monitor train_ref.tsv inference_stream.tsv -x text --oov-threshold 0.10
     """
-    console = get_console()
-    console.rule("[bold cyan]DIVE NLP Distribution Drift Audit[/bold cyan]")
-    ref_ds = NLPDataset.from_file(ref_path, text_column=text_col)
-    curr_ds = NLPDataset.from_file(curr_path, text_column=text_col)
+    console = _console(ctx)
+    reference = NLPDataset.from_file(ref_path, text_column=text_col)
+    current = NLPDataset.from_file(curr_path, text_column=text_col)
 
-    monitor = NLPDriftMonitor(reference_texts=ref_ds.texts, oov_threshold=oov_threshold)
-    report = monitor.check_drift(current_texts=curr_ds.texts)
-    console.print(report.render())
+    monitor = NLPDriftMonitor(reference_texts=reference.texts, oov_threshold=oov_threshold)
+    console.report(monitor.check_drift(current_texts=current.texts))
 
 
 # ----------------------------------------------------------------------
@@ -348,7 +425,13 @@ def monitor_cmd(ref_path: str, curr_path: str, text_col: Optional[str], oov_thre
 @click.argument("model_path", type=click.Path(exists=True, dir_okay=False))
 @click.option("--data", "-d", "data_path", default=None, type=click.Path(exists=True, dir_okay=False), help="Test dataset path for benchmarking.")
 @click.option("--samples", "-n", default=100, type=int, help="Number of test iterations.")
-def benchmark_cmd(model_path: str, data_path: Optional[str], samples: int) -> None:
+@click.pass_context
+def benchmark_cmd(
+    ctx: click.Context,
+    model_path: str,
+    data_path: Optional[str],
+    samples: int,
+) -> None:
     """Benchmark prediction latency percentiles (p50, p95, p99) and throughput.
 
     \b
@@ -356,15 +439,11 @@ def benchmark_cmd(model_path: str, data_path: Optional[str], samples: int) -> No
       dive nlp benchmark champion.pkl
       dive nlp benchmark champion.pkl --data test.csv --samples 200
     """
-    console = get_console()
-    console.rule("[bold cyan]DIVE NLP Model Latency & Throughput Benchmark[/bold cyan]")
-
+    console = _console(ctx)
     predictor = load_nlp_predictor(model_path)
-    console.print(f"[bold green]✓[/bold green] Loaded Predictor: [cyan]{model_path}[/cyan]")
 
     if data_path is not None:
-        ds = NLPDataset.from_file(data_path)
-        texts = ds.texts[:samples]
+        texts = NLPDataset.from_file(data_path).texts[:samples]
     else:
         texts = [
             "This is a standard test sentence designed to benchmark text scoring latency.",
@@ -373,23 +452,75 @@ def benchmark_cmd(model_path: str, data_path: Optional[str], samples: int) -> No
         ] * (samples // 3 + 1)
         texts = texts[:samples]
 
-    # Warmup
-    _ = predictor.predict(texts[:5])
+    if not texts:
+        console.warn("No documents available to benchmark.")
+        return
+
+    # Warm up so first-call import/JIT cost does not land in the percentiles.
+    predictor.predict(texts[:5])
 
     latencies: List[float] = []
     for text in texts:
-        t0 = time.perf_counter()
-        _ = predictor.predict([text])
-        latencies.append((time.perf_counter() - t0) * 1000.0)
+        started = time.perf_counter()
+        predictor.predict([text])
+        latencies.append((time.perf_counter() - started) * 1000.0)
 
-    p50 = float(np.percentile(latencies, 50))
-    p95 = float(np.percentile(latencies, 95))
-    p99 = float(np.percentile(latencies, 99))
-    avg_lat = float(np.mean(latencies))
-    throughput = 1000.0 / max(avg_lat, 1e-6)
+    average = float(np.mean(latencies))
+    builder = ReportBuilder("DIVE NLP LATENCY & THROUGHPUT BENCHMARK", console=console)
+    builder.kv("Predictor", model_path)
+    builder.kv("Documents scored", f"{len(texts):,}")
+    builder.section("LATENCY PROFILE")
+    builder.table(
+        ["Percentile", "Latency (ms/doc)"],
+        [
+            ["p50 (median)", f"{float(np.percentile(latencies, 50)):.2f}"],
+            ["p95", f"{float(np.percentile(latencies, 95)):.2f}"],
+            ["p99", f"{float(np.percentile(latencies, 99)):.2f}"],
+            ["mean", f"{average:.2f}"],
+        ],
+    )
+    builder.kv("Single-thread rate", f"{1000.0 / max(average, 1e-6):,.1f} docs/sec")
+    console.report(builder)
 
-    console.print("\n[bold]Latency & Throughput Profile:[/bold]")
-    console.print(f"  • [bold cyan]p50 (Median Latency):[/bold cyan]  {p50:.2f} ms/doc")
-    console.print(f"  • [bold cyan]p95 Latency:[/bold cyan]          {p95:.2f} ms/doc")
-    console.print(f"  • [bold cyan]p99 Latency:[/bold cyan]          {p99:.2f} ms/doc")
-    console.print(f"  • [bold cyan]Single-Thread Rate:[/bold cyan]   {throughput:,.1f} docs/sec\n")
+
+# ----------------------------------------------------------------------
+@nlp_command.command("zero-shot")
+@click.argument("text", type=str)
+@click.option("--labels", "-l", required=True, type=str, help="Comma-separated candidate labels.")
+@click.option("--temperature", "-t", type=float, default=0.15, help="Softmax temperature calibration.")
+@click.pass_context
+def zero_shot_command(
+    ctx: click.Context,
+    text: str,
+    labels: str,
+    temperature: float,
+) -> None:
+    """Classify raw text into candidate categories without any training data.
+
+    \b
+    Examples:
+      dive nlp zero-shot "Urgent! Claim your free gift card now" --labels "spam,news,finance"
+      dive nlp zero-shot "Quarterly revenue increased by 14%" --labels "earnings,product,hr"
+    """
+    from dive.nlp.inference.zero_shot import ZeroShotClassifier
+
+    console = _console(ctx)
+    candidate_list = [lbl.strip() for lbl in labels.split(",") if lbl.strip()]
+
+    classifier = ZeroShotClassifier(temperature=temperature)
+    results = classifier.predict(text, candidate_list)
+    res = results[0]
+
+    builder = ReportBuilder("DIVE NLP ZERO-SHOT CLASSIFIER", console=console)
+    builder.kv("Input Text", text)
+    builder.kv("Predicted Label", res["predicted_label"])
+    builder.kv("Confidence", f"{res['confidence'] * 100:.1f}%")
+    builder.section("CALIBRATED CLASS PROBABILITIES")
+    rows = []
+    for lbl, prob in res["ranking"]:
+        bar_len = int(prob * 24)
+        bar = "#" * bar_len + "." * (24 - bar_len)
+        rows.append([lbl, f"[{bar}]", f"{prob * 100:.1f}%"])
+    builder.table(["Candidate Class", "Distribution Bar", "Probability"], rows)
+    console.report(builder)
+

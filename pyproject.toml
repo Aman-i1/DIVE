@@ -60,6 +60,30 @@ ops = [
     "scipy>=1.9",
     "polars>=0.18",
 ]
+# Text: dense embeddings and transformer fine-tuning. Without these the NLP
+# domain still runs on TF-IDF + linear models.
+nlp = [
+    "sentence-transformers>=2.2",
+    "transformers>=4.30",
+]
+# Deep learning across tabular/text/audio/video. Deliberately NOT included in
+# `full`: torch alone is a ~250 MB download and `dive dl` installs it on demand
+# only when a command actually needs it. See dive/utils/optional.py.
+dl = [
+    "torch>=2.0",
+    "torchaudio>=2.0",
+    "librosa>=0.10",
+    "soundfile>=0.12",
+    "av>=10.0",
+]
+# Computer vision: image classification backbones and decoders.
+cv = [
+    "torch>=2.0",
+    "torchvision>=0.15",
+    "timm>=0.9",
+    "opencv-python>=4.7",
+    "pillow>=9.0",
+]
 full = [
     "xgboost>=1.7",
     "lightgbm>=3.3",

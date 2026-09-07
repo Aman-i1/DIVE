@@ -22,16 +22,28 @@ htmlcov/
 catboost_info/
 dive_output/
 dive_autopilot_out/
+.dive/
 .dive_store/
+*_out/
+*_model/
+reproducibility_bundle_*/
+benchmark_data/
+benchmark_*/
 higgs_best_model/
 higgs_max_quality/
 higgs_*.json
 higgs_*.csv
 *.pkl
-predictions.csv
+*.onnx
+*.onnx.json
+*.cert.json
+*.pdf
+*.log
+predictions*.csv
 
 # Editors / OS
 .vscode/
 .idea/
 .DS_Store
 Thumbs.db
+

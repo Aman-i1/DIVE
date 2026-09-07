@@ -7,6 +7,7 @@ from typing import Any, Optional
 
 from dive.registry import ModelRegistry
 from dive.utils.logging import Console
+from dive.utils.report import ReportBuilder
 
 
 def run_models_list(console: Console, model_name: Optional[str] = None) -> None:
@@ -16,17 +17,20 @@ def run_models_list(console: Console, model_name: Optional[str] = None) -> None:
         console.info("No models registered yet. Register models using `dive models register`.")
         return
 
-    console.rule("Model Registry Catalog")
-    lines = [f"{'Model':<16} {'Version':<10} {'Stage':<12} {'Created At':<22}"]
-    lines.append("-" * 62)
-    for m in models:
-        lines.append(
-            f"{m.get('model_name', ''):<16} "
-            f"{m.get('version', ''):<10} "
-            f"{m.get('stage', '').upper():<12} "
-            f"{m.get('created_at', ''):<22}"
-        )
-    console.print("\n".join(lines))
+    builder = ReportBuilder("MODEL REGISTRY CATALOG", console=console)
+    builder.table(
+        ["Model", "Version", "Stage", "Created At"],
+        [
+            [
+                entry.get("model_name", ""),
+                entry.get("version", ""),
+                str(entry.get("stage", "")).upper(),
+                entry.get("created_at", ""),
+            ]
+            for entry in models
+        ],
+    )
+    console.report(builder)
 
 
 def run_models_register(

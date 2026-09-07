@@ -62,6 +62,8 @@ class NLPDataset:
         languages: Optional[Sequence[str]] = None,
         splits: Optional[Sequence[str]] = None,
         name: str = "nlp_dataset",
+        text_column: Optional[str] = None,
+        target_column: Optional[str] = None,
     ) -> None:
         self._texts: List[str] = [str(t) if t is not None else "" for t in texts]
         n_samples = len(self._texts)
@@ -130,10 +132,25 @@ class NLPDataset:
             self._splits = None
 
         self.name = name
+        # Column names actually resolved by the loader. Retained so callers can
+        # report what was detected instead of re-guessing it from the frame and
+        # potentially naming a column that does not exist.
+        self._text_column = text_column
+        self._target_column = target_column
 
     # ------------------------------------------------------------------
     # Protocol properties
     # ------------------------------------------------------------------
+    @property
+    def text_column(self) -> Optional[str]:
+        """Name of the resolved text column, when the dataset came from a frame."""
+        return self._text_column
+
+    @property
+    def target_column(self) -> Optional[str]:
+        """Name of the resolved target column, or ``None`` when unlabelled."""
+        return self._target_column
+
     @property
     def texts(self) -> List[str]:
         return self._texts
@@ -285,6 +302,8 @@ class NLPDataset:
             languages=languages,
             splits=splits,
             name=name,
+            text_column=text_column,
+            target_column=target_column,
         )
 
     @classmethod
@@ -534,6 +553,8 @@ class NLPDataset:
             languages=sub_langs,
             splits=sub_splits,
             name=name or self.name,
+            text_column=self._text_column,
+            target_column=self._target_column,
         )
 
     def summary_stats(self) -> Dict[str, Any]:

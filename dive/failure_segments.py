@@ -16,6 +16,7 @@ import pandas as pd
 from sklearn.metrics import accuracy_score, r2_score, roc_auc_score
 
 from dive.decisions import DecisionLogger
+from dive.utils.report import ReportBuilder
 
 
 @dataclass
@@ -62,23 +63,27 @@ class FailureSegmentsReport:
         }
 
     def render(self) -> str:
-        lines = [
-            "FAILURE SEGMENTATION AUDIT",
-            "==========================",
-            f"Global {self.global_metric_name:<16}: {self.global_metric_value:.4f} [Status: {self.overall_segment_status}]",
-        ]
+        """Render the segmentation audit through the shared platform renderer."""
+        builder = ReportBuilder("FAILURE SEGMENTATION AUDIT")
+        builder.status(
+            self.overall_segment_status,
+            f"Segment status: {self.overall_segment_status}",
+        )
+        builder.kv(f"Global {self.global_metric_name}", f"{self.global_metric_value:.4f}")
+
         if self.weak_segments:
-            lines.append("\nIdentified Weak Segments / Slices:")
-            for s in self.weak_segments[:5]:
-                lines.append(
-                    f"  - [{s.risk_level:<7}] {s.segment_description:<30}: Metric={s.segment_metric:.4f} "
-                    f"(Drop: {s.metric_drop:+.4f}, N={s.sample_count:,} ({s.sample_pct:.1%}))"
+            builder.section("IDENTIFIED WEAK SEGMENTS / SLICES")
+            for segment in self.weak_segments[:5]:
+                builder.status(
+                    segment.risk_level,
+                    f"{segment.segment_description}: metric={segment.segment_metric:.4f} "
+                    f"(drop {segment.metric_drop:+.4f}, n={segment.sample_count:,}, "
+                    f"{segment.sample_pct:.1%})",
                 )
         if self.recommendations:
-            lines.append("\nRecommendations:")
-            for rec in self.recommendations:
-                lines.append(f"  - {rec}")
-        return "\n".join(lines)
+            builder.section("RECOMMENDATIONS")
+            builder.bullets(self.recommendations)
+        return builder.build()
 
 
 class FailureSegmentAnalyzer:

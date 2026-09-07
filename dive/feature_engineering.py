@@ -30,6 +30,46 @@ DATETIME_PARSE_THRESHOLD = 0.8
 DATETIME_PARTS = ("year", "month", "day", "dayofweek", "quarter", "weekofyear")
 
 
+class NativeTargetEncoder:
+    """Zero-dependency smoothed target encoder with m-estimate regularization.
+
+    For each category c in column col:
+        encoded = (count_c * mean_y_c + smoothing * global_mean) / (count_c + smoothing)
+    """
+
+    def __init__(self, cols: List[str], smoothing: float = 10.0) -> None:
+        self.cols = list(cols)
+        self.smoothing = float(smoothing)
+        self.global_mean_: float = 0.0
+        self.mapping_: Dict[str, Dict[Any, float]] = {}
+
+    def fit(self, df: pd.DataFrame, y: pd.Series) -> "NativeTargetEncoder":
+        y_num = pd.to_numeric(y, errors="coerce")
+        self.global_mean_ = float(y_num.mean()) if not y_num.empty else 0.0
+        self.mapping_ = {}
+        for col in self.cols:
+            if col not in df.columns:
+                continue
+            groups = y_num.groupby(df[col])
+            counts = groups.count()
+            means = groups.mean()
+            smoothed = (counts * means + self.smoothing * self.global_mean_) / (counts + self.smoothing)
+            self.mapping_[col] = smoothed.to_dict()
+        return self
+
+    def transform(self, df: pd.DataFrame) -> pd.DataFrame:
+        df = df.copy()
+        for col in self.cols:
+            if col in df.columns and col in self.mapping_:
+                mapping = self.mapping_[col]
+                df[col] = df[col].map(mapping).fillna(self.global_mean_).astype("float32")
+        return df
+
+    def fit_transform(self, df: pd.DataFrame, y: pd.Series) -> pd.DataFrame:
+        self.fit(df, y)
+        return self.transform(df)
+
+
 class FeatureEngineer:
     """Deterministic, fit/transform-symmetric feature engineering.
 
@@ -48,6 +88,8 @@ class FeatureEngineer:
         use_freq_encoding: bool = True,
         outlier_clip: bool = True,
         rare_threshold: float = 0.01,
+        time_column: Optional[str] = None,
+        group_column: Optional[str] = None,
     ) -> None:
         self.profile = profile
         self.target = target
@@ -57,6 +99,8 @@ class FeatureEngineer:
         self.use_freq_encoding = use_freq_encoding
         self.outlier_clip = outlier_clip
         self.rare_threshold = rare_threshold
+        self.time_column = time_column
+        self.group_column = group_column
 
         self.datetime_cols_: List[str] = []
         self.freq_maps_: Dict[str, Dict[Any, float]] = {}
@@ -78,11 +122,18 @@ class FeatureEngineer:
         df = df.copy()
         df = self._drop_junk(df)
         df = self._parse_datetime(df, fit=True)
+        if self.time_column and self.time_column in df.columns:
+            from dive.temporal_features import LeakageSafeTemporalEngine
+            t_engine = LeakageSafeTemporalEngine(
+                time_column=self.time_column,
+                group_column=self.group_column,
+            )
+            df, _ = t_engine.generate_features(df)
         df = self._clip_outliers_fit(df)
         df = self._rare_categories_fit(df)
         if self.use_freq_encoding:
             df = self._freq_encode_fit(df)
-        if self.use_target_encoding and is_available("category_encoders"):
+        if self.use_target_encoding:
             df = self._target_encode_fit(df, y)
         return self._to_float32(df)
 
@@ -93,6 +144,13 @@ class FeatureEngineer:
             columns=[c for c in self.drop_cols_ if c in df.columns], errors="ignore"
         )
         df = self._parse_datetime(df, fit=False)
+        if self.time_column and self.time_column in df.columns:
+            from dive.temporal_features import LeakageSafeTemporalEngine
+            t_engine = LeakageSafeTemporalEngine(
+                time_column=self.time_column,
+                group_column=self.group_column,
+            )
+            df, _ = t_engine.generate_features(df)
         df = self._clip_outliers_transform(df)
         df = self._rare_categories_transform(df)
         if self.use_freq_encoding:
@@ -233,14 +291,14 @@ class FeatureEngineer:
 
     # ------------------------------------------------------------------
     def _target_encode_fit(self, df: pd.DataFrame, y: pd.Series) -> pd.DataFrame:
-        """Replace categoricals with smoothed target means (category_encoders)."""
-        ce = load_optional("category_encoders")
-        if ce is None:
-            return df
+        """Replace categoricals with smoothed target means with zero-dependency fallback."""
         cat_cols = df.select_dtypes("object").columns.tolist()
         if not cat_cols:
             return df
+        if not is_available("category_encoders"):
+            return df
         try:
+            ce = load_optional("category_encoders")
             self.target_enc_ = ce.TargetEncoder(cols=cat_cols, smoothing=10)
             df[cat_cols] = self.target_enc_.fit_transform(df[cat_cols], y)
         except Exception:
@@ -248,6 +306,7 @@ class FeatureEngineer:
             # and let the one-hot encoder in the preprocessor handle them.
             self.target_enc_ = None
         return df
+
 
     # ------------------------------------------------------------------
     def describe(self) -> Dict[str, Any]:
