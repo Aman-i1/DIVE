@@ -17,6 +17,7 @@ console from the click context so the root ``--quiet`` flag is honoured.
 
 from __future__ import annotations
 
+import os
 import time
 from typing import Any, List, Optional
 
@@ -93,23 +94,28 @@ def nlp_command() -> None:
 # 1. dive nlp info
 # ----------------------------------------------------------------------
 @nlp_command.command("info")
-@click.argument("data_path", type=click.Path(exists=True, dir_okay=False))
+@click.argument("data_path", required=False, default=None, type=click.Path(exists=True, dir_okay=False))
+@click.option("--data", "-d", default=None, type=click.Path(exists=True, dir_okay=False), help="Path to input dataset file.")
 @click.pass_context
-def info_cmd(ctx: click.Context, data_path: str) -> None:
+def info_cmd(ctx: click.Context, data_path: Optional[str], data: Optional[str]) -> None:
     """Inspect dataset schema, detected text/target columns, and sample preview.
 
     \b
     Examples:
       dive nlp info reviews.csv
-      dive nlp info comments.jsonl
+      dive nlp info --data comments.jsonl
       dive nlp info data/dataset.parquet
     """
+    resolved_data = data_path or data
+    if not resolved_data:
+        raise click.UsageError("Missing dataset path. Provide DATA_PATH argument or --data option.")
+
     console = _console(ctx)
-    ds = NLPDataset.from_file(data_path)
+    ds = NLPDataset.from_file(resolved_data)
     frame = ds.to_dataframe()
 
     builder = ReportBuilder("DIVE NLP DATASET INSPECTOR", console=console)
-    builder.kv("Source file", data_path)
+    builder.kv("Source file", resolved_data)
     builder.kv("Rows x columns", f"{len(frame):,} x {len(frame.columns)}")
     builder.kv("Columns", ", ".join(map(str, frame.columns)))
 
@@ -148,26 +154,47 @@ def info_cmd(ctx: click.Context, data_path: str) -> None:
 
     builder.next_steps(
         [
-            f'dive nlp profile "{data_path}"',
-            f'dive nlp train "{data_path}" --trials 5 --output champion.pkl',
+            f'dive nlp profile "{resolved_data}"',
+            f'dive nlp train "{resolved_data}" --trials 5 --output champion.pkl',
         ]
     )
     console.report(builder)
 
 
 # ----------------------------------------------------------------------
-# 2. dive nlp profile
+# 2. dive nlp profile & dive nlp audit
 # ----------------------------------------------------------------------
+def _run_profile(
+    ctx: click.Context,
+    data_path: Optional[str],
+    data: Optional[str],
+    text_col: Optional[str],
+    target_col: Optional[str],
+    label_col: Optional[str],
+) -> None:
+    resolved_data = data_path or data
+    if not resolved_data:
+        raise click.UsageError("Missing dataset path. Provide DATA_PATH argument or --data option.")
+    resolved_target = target_col or label_col
+    console = _console(ctx)
+    ds = NLPDataset.from_file(resolved_data, text_column=text_col, target_column=resolved_target)
+    console.report(NLPProfiler().profile(ds))
+
+
 @nlp_command.command("profile")
-@click.argument("data_path", type=click.Path(exists=True, dir_okay=False))
+@click.argument("data_path", required=False, default=None, type=click.Path(exists=True, dir_okay=False))
+@click.option("--data", "-d", default=None, type=click.Path(exists=True, dir_okay=False), help="Path to input dataset file.")
 @click.option("--text-col", "-x", default=None, help="Name of the text feature column.")
 @click.option("--target-col", "-y", default=None, help="Name of the target label column.")
+@click.option("--label-col", default=None, help="Alias for --target-col.")
 @click.pass_context
 def profile_cmd(
     ctx: click.Context,
-    data_path: str,
+    data_path: Optional[str],
+    data: Optional[str],
     text_col: Optional[str],
     target_col: Optional[str],
+    label_col: Optional[str],
 ) -> None:
     """Profile NLP dataset, character/token distributions, and label audits.
 
@@ -175,21 +202,47 @@ def profile_cmd(
     Examples:
       dive nlp profile dataset.csv
       dive nlp profile reviews.tsv -x review_text -y sentiment
-      dive nlp profile tickets.jsonl --text-col description --target-col category
+      dive nlp profile --data tickets.jsonl --text-col description --target-col category
     """
-    console = _console(ctx)
-    ds = NLPDataset.from_file(data_path, text_column=text_col, target_column=target_col)
-    console.report(NLPProfiler().profile(ds))
+    _run_profile(ctx, data_path, data, text_col, target_col, label_col)
+
+
+@nlp_command.command("audit")
+@click.argument("data_path", required=False, default=None, type=click.Path(exists=True, dir_okay=False))
+@click.option("--data", "-d", default=None, type=click.Path(exists=True, dir_okay=False), help="Path to input dataset file.")
+@click.option("--text-col", "-x", default=None, help="Name of the text feature column.")
+@click.option("--target-col", "-y", default=None, help="Name of the target label column.")
+@click.option("--label-col", default=None, help="Alias for --target-col.")
+@click.pass_context
+def audit_cmd(
+    ctx: click.Context,
+    data_path: Optional[str],
+    data: Optional[str],
+    text_col: Optional[str],
+    target_col: Optional[str],
+    label_col: Optional[str],
+) -> None:
+    """Run NLP health audit on dataset (alias for dive nlp profile).
+
+    \b
+    Examples:
+      dive nlp audit dataset.csv
+      dive nlp audit --data sentiment.csv --text-col text --label-col label
+    """
+    _run_profile(ctx, data_path, data, text_col, target_col, label_col)
 
 
 # ----------------------------------------------------------------------
 # 3. dive nlp train
 # ----------------------------------------------------------------------
 @nlp_command.command("train")
-@click.argument("data_path", type=click.Path(exists=True, dir_okay=False))
+@click.argument("data_path", required=False, default=None, type=click.Path(exists=True, dir_okay=False))
+@click.option("--data", "-d", default=None, type=click.Path(exists=True, dir_okay=False), help="Path to input dataset file.")
 @click.option("--target-col", "-y", default=None, help="Target label column.")
+@click.option("--label-col", default=None, help="Alias for target label column.")
 @click.option("--text-col", "-x", default=None, help="Text feature column.")
 @click.option("--output", "-o", default="nlp_champion.pkl", help="Destination path for trained champion model.")
+@click.option("--output-dir", default=None, help="Destination directory or path for trained model.")
 @click.option("--trials", "-n", default=5, type=int, help="Maximum number of candidate trials to evaluate.")
 @click.option(
     "--optimize-for",
@@ -200,10 +253,13 @@ def profile_cmd(
 @click.pass_context
 def train_cmd(
     ctx: click.Context,
-    data_path: str,
+    data_path: Optional[str],
+    data: Optional[str],
     target_col: Optional[str],
+    label_col: Optional[str],
     text_col: Optional[str],
     output: str,
+    output_dir: Optional[str],
     trials: int,
     optimize_for: str,
 ) -> None:
@@ -212,28 +268,52 @@ def train_cmd(
     \b
     Examples:
       dive nlp train dataset.csv
-      dive nlp train dataset.csv --trials 10 --optimize-for accuracy --output ./best_model.pkl
+      dive nlp train --data dataset.csv --trials 10 --optimize-for accuracy --output ./best_model.pkl
       dive nlp train reviews.tsv -x text -y sentiment --trials 5 --output model.pkl
+      dive nlp train --data sentiment.csv --text-col text --label-col label --output-dir ./nlp_out
     """
+    resolved_data = data_path or data
+    if not resolved_data:
+        raise click.UsageError("Missing dataset path. Provide DATA_PATH argument or --data option.")
+
+    resolved_target = target_col or label_col
+
+    resolved_output = output
+    if output_dir:
+        if (
+            os.path.isdir(output_dir)
+            or output_dir.endswith("/")
+            or output_dir.endswith("\\")
+            or "." not in os.path.basename(output_dir)
+        ):
+            os.makedirs(output_dir, exist_ok=True)
+            resolved_output = os.path.join(output_dir, "nlp_champion.pkl")
+        else:
+            parent_dir = os.path.dirname(output_dir)
+            if parent_dir:
+                os.makedirs(parent_dir, exist_ok=True)
+            resolved_output = output_dir
+
     console = _console(ctx)
     console.rule("DIVE AutoNLP Autonomous Search")
     engine = AutoNLP(max_trials=trials, optimize_for=optimize_for)
     predictor, leaderboard = engine.fit(
-        data=data_path,
-        target_column=target_col,
+        data=resolved_data,
+        target_column=resolved_target,
         text_column=text_col,
     )
     console.report(leaderboard)
-    save_nlp_predictor(predictor, output)
-    console.success(f"Champion predictor saved to: {output}")
-    console.print(f"  Next: dive nlp predict {output} --data <new_rows.csv>")
+    save_nlp_predictor(predictor, resolved_output)
+    console.success(f"Champion predictor saved to: {resolved_output}")
+    console.print(f"  Next: dive nlp predict {resolved_output} --data <new_rows.csv>")
 
 
 # ----------------------------------------------------------------------
 # 4. dive nlp predict
 # ----------------------------------------------------------------------
 @nlp_command.command("predict")
-@click.argument("model_path", type=click.Path(exists=True, dir_okay=False))
+@click.argument("model_path", required=False, default=None, type=click.Path(exists=True, dir_okay=False))
+@click.option("--model", "-m", default=None, type=click.Path(exists=True, dir_okay=False), help="Path to trained model file.")
 @click.option("--data", "-d", "data_path", default=None, type=click.Path(exists=True, dir_okay=False), help="Path to input dataset file (CSV, JSON, Parquet).")
 @click.option("--text", "-t", "single_text", default=None, help="Single text string to score directly from terminal.")
 @click.option("--text-col", "-x", default=None, help="Text column name in data file.")
@@ -242,7 +322,8 @@ def train_cmd(
 @click.pass_context
 def predict_cmd(
     ctx: click.Context,
-    model_path: str,
+    model_path: Optional[str],
+    model: Optional[str],
     data_path: Optional[str],
     single_text: Optional[str],
     text_col: Optional[str],
@@ -262,12 +343,16 @@ def predict_cmd(
       # Interactive terminal prediction machine
       dive nlp predict model.pkl
     """
+    resolved_model = model_path or model
+    if not resolved_model:
+        raise click.UsageError("Missing model path. Provide MODEL_PATH argument or --model option.")
+
     console = _console(ctx)
     console.rule("DIVE NLP Prediction Engine")
 
-    predictor = load_nlp_predictor(model_path)
+    predictor = load_nlp_predictor(resolved_model)
     model_name = getattr(predictor, "model_name", "NLPPredictor")
-    console.kv("Predictor", f"{model_path} ({model_name})")
+    console.kv("Predictor", f"{resolved_model} ({model_name})")
 
     # 1. Single text prediction
     if single_text is not None:

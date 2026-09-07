@@ -198,3 +198,65 @@ def test_cli_nlp_benchmark(sample_csv: Path, tmp_path: Path) -> None:
     r_bench = runner.invoke(cli, ["nlp", "benchmark", str(out_model), "--samples", "10"])
     assert r_bench.exit_code == 0, f"Error: {r_bench.output}"
     assert "p50 (median)" in r_bench.output
+
+
+def test_cli_nlp_audit_alias(sample_csv: Path) -> None:
+    """Verify 'dive nlp audit' works as an alias for profile with --data and --label-col."""
+    runner = CliRunner()
+    result = runner.invoke(
+        cli,
+        [
+            "nlp",
+            "audit",
+            "--data",
+            str(sample_csv),
+            "--text-col",
+            "review",
+            "--label-col",
+            "sentiment",
+        ],
+    )
+    assert result.exit_code == 0, f"Error: {result.output}"
+    assert "DIVE NLP DATASET PROFILE REPORT" in result.output
+    assert "TARGET LABEL DISTRIBUTION" in result.output
+
+
+def test_cli_nlp_train_with_data_flag_and_output_dir(sample_csv: Path, tmp_path: Path) -> None:
+    """Verify 'dive nlp train' works with --data, --label-col, and --output-dir directory."""
+    out_dir = tmp_path / "nlp_models"
+    runner = CliRunner()
+    result = runner.invoke(
+        cli,
+        [
+            "nlp",
+            "train",
+            "--data",
+            str(sample_csv),
+            "--text-col",
+            "review",
+            "--label-col",
+            "sentiment",
+            "--trials",
+            "2",
+            "--output-dir",
+            str(out_dir),
+        ],
+    )
+    assert result.exit_code == 0, f"Error: {result.output}"
+    assert (out_dir / "nlp_champion.pkl").exists()
+
+    # Verify predict with --model flag
+    res_pred = runner.invoke(
+        cli,
+        [
+            "nlp",
+            "predict",
+            "--model",
+            str(out_dir / "nlp_champion.pkl"),
+            "--text",
+            "Great product loved it",
+            "--proba",
+        ],
+    )
+    assert res_pred.exit_code == 0, f"Error: {res_pred.output}"
+    assert "Predicted label" in res_pred.output
